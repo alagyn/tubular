@@ -1,0 +1,12 @@
+meta:
+  display: My pipeline
+
+node:
+  # lists of tags
+  requires:
+    - linux
+  avoids:
+    - windows
+
+tasks:
+  - 
