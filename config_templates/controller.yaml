@@ -1,25 +1,25 @@
 controller:
-
-# TODO git credentials
+  workspace: /home/tubular/workspace
+  # TODO git credentials
 
 pipelines:
-  - mypipelinerepo:
-    - repo: "git@github.com:alagyn/tubular"
-    - default-branch: main
-    - paths:
+  myPipelines:
+    repo: "git@github.com:alagyn/tubular"
+    # default-branch: main
+    paths:
       - piplines
       - tests
       - other
 
 nodes:
-  - myserver:
-    - port: 8000
-    - tags:
+  myserver:
+    port: 8000
+    tags:
       - windows
       - gpu
-  - myotherserver:
-    - host: actualhostname
-    - port: 8008
-    - tags:
+  myotherserver:
+    host: actualhostname
+    port: 8008
+    tags:
       - linux
       - whatever

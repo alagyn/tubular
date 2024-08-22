@@ -4,9 +4,18 @@ meta:
 node:
   # lists of tags
   requires:
+    - build
     - linux
   avoids:
-    - windows
+    - mac
 
 tasks:
-  - 
+  # arbitrary name
+  - build:
+    display: Build the thing
+    type: exec
+    target: "${workspace}/build.sh"
+  # copy build to artifact dir
+  - archive:
+    type: archive
+    target: "${workspace}/build/bin"

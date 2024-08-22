@@ -1,4 +1,6 @@
-from tubular.node.node_state import NodeState
+from typing import Dict, Any
+
+from tubular_node.node import NodeState
 
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
@@ -30,6 +32,5 @@ async def getStatus():
 
 
 @app.post("/queue")
-async def addTask():
-    # TODO
-    NODE_STATE.queueTask()
+async def addTask(repo: str, pipeline: str, args: Dict[str, Any]):
+    NODE_STATE.queueTask(repo, pipeline, args)

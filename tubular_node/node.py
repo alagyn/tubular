@@ -1,13 +1,11 @@
 import enum
 import threading
-
+from typing import Dict, Any
 import os
+from collections import deque
 
-from yaml import load, dump
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
+from tubular.config_loader import load_configs
+from tubular.pipeline import Pipeline
 
 
 class NodeStatus(enum.IntEnum):
@@ -19,33 +17,21 @@ class NodeState:
 
     def __init__(self) -> None:
         self.workspaceDir = ""
-        self.taskQueue = []
-        self.status = NodeStatus.Idle
+        self.taskQueue: deque[Pipeline] = deque()
 
+        self.status = NodeStatus.Idle
         self.workerThread = threading.Thread()
         self.taskQueueCV = threading.Condition()
         self.shouldRun = True
 
     def start(self):
-        try:
-            cfgFile = os.environ["TUBULAR_CONFIG"]
-        except KeyError:
-            cfgFile = "node.yaml"
-
-        if not os.path.exists(cfgFile):
-            raise RuntimeError(
-                f"Cannot find config file: {cfgFile}, or TUBULAR_CONFIG variable not defined"
-            )
-
-        with open(cfgFile, mode='wb') as f:
-            config = load(f, Loader)
-
+        config = load_configs()
         self.workspaceDir = config["node"]["workspace-root"]
 
         if not os.path.exists(self.workspaceDir):
             os.makedirs(self.workspaceDir, exist_ok=True)
 
-        self.workerThread = threading.Thread(self.management_thread)
+        self.workerThread = threading.Thread(target=self.management_thread)
         self.workerThread.start()
 
     def stop(self):
@@ -60,11 +46,17 @@ class NodeState:
             with self.taskQueueCV:
                 if len(self.taskQueue) == 0:
                     self.taskQueueCV.wait()
-
                 if not self.shouldRun:
                     break
+                pipeline = self.taskQueue.popleft()
+            self.runTask(pipeline)
 
-    def queueTask(self):
+    def queueTask(self, repo: str, pipeline: str, args: Dict[str, Any]):
         with self.taskQueueCV:
             # TODO
             self.taskQueueCV.notify()
+
+    def runTask(self, pipeline: Pipeline):
+        # TODO check if repo exists
+        # TODO pipeline repo branches?
+        pass
