@@ -7,3 +7,7 @@ class Pipeline:
         self.repo = repo
         self.pipeline = pipeline
         self.args = args
+        self.stages = []
+
+    def run(self):
+        pass

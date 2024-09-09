@@ -1,0 +1,21 @@
+meta:
+  display: My pipeline
+
+args:
+  # sets default values
+  repo: my-repo.git
+  branch: main
+
+stages:
+  # stages are completed sequentially
+  - stage1:
+    display: Build my thing
+    # tasks are completed concurrently, if possible
+    tasks:
+      - build-linux
+      - build-win
+
+  - stage2:
+    display: upload the thing
+    tasks:
+      - upload
