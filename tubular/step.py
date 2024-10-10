@@ -3,13 +3,15 @@ from typing import Dict, Any
 import subprocess as sp
 import os
 import sys
+import shutil
 
-from tubular.task_env import TaskEnv, TaskOS
+from tubular import git_cmds
+from tubular.task_env import TaskEnv
 
 
 class StepType(enum.IntEnum):
     Clone = enum.auto()
-    Shell = enum.auto()
+    Script = enum.auto()
     Exec = enum.auto()
     Archive = enum.auto()
 
@@ -18,8 +20,8 @@ def strToStepType(e: str) -> StepType:
     match e.lower():
         case 'clone':
             return StepType.Clone
-        case 'shell':
-            return StepType.Shell
+        case 'script':
+            return StepType.Script
         case 'exec':
             return StepType.Exec
         case 'archive':
@@ -36,35 +38,47 @@ def getStr(config, key) -> str:
     return val
 
 
+# TODO capture output
+
+
 class Step:
 
-    def __init__(self, name: str, config: Dict[str, Any]) -> None:
-        self.name = name
+    def __init__(self, config: Dict[str, Any]) -> None:
         try:
             val = getStr(config, 'display')
+            self.display = val
         except KeyError:
-            self.display = self.name
+            self.display = getStr(config, "type")
 
     def run(self, taskEnv: TaskEnv):
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class _StepActionClone(Step):
 
-    def __init__(self, name: str, config: Dict[str, Any]) -> None:
-        super().__init__(name, config)
-        self.repo = getStr(config, "repo")
+    def __init__(self, config: Dict[str, Any]) -> None:
+        super().__init__(config)
+        self.url = getStr(config, "url")
         self.branch = getStr(config, "branch")
 
     def run(self, taskEnv: TaskEnv):
-        sp.run(args=["git", "clone", self.branch, "-b", self.branch],
-               cwd=taskEnv.workspace)
+        url = taskEnv.replace(self.url)
+        branch = taskEnv.replace(self.branch)
+
+        path = os.path.join(taskEnv.workspace, git_cmds.getRepoName(url))
+
+        if not os.path.exists(path):
+            print(f"Cloning {url}:{branch} into {path}")
+            git_cmds.clone(url, branch, path)
+        else:
+            print(f"Pulling {url}:{branch} into {path}")
+            git_cmds.pull(path)
 
 
-class _StepActionShell(Step):
+class _StepActionScript(Step):
 
-    def __init__(self, name: str, config: Dict[str, Any]) -> None:
-        super().__init__(name, config)
+    def __init__(self, config: Dict[str, Any]) -> None:
+        super().__init__(config)
         self.lang = getStr(config, "lang")
         self.script = getStr(config, "script")
 
@@ -85,49 +99,63 @@ class _StepActionShell(Step):
                 # TODO move this check to the init?
                 raise RuntimeError(f"Invalid script language: {self.lang}")
 
-        scriptFile = os.path.join(taskEnv.workspace, f'{self.name}.{ext}')
+        scriptName = f'step-{taskEnv.taskStep}.{ext}'
+        scriptFile = os.path.join(taskEnv.workspace, scriptName)
 
         with open(scriptFile, mode="w") as f:
-            f.write(self.script)
+            text = taskEnv.replace(self.script)
+            f.write(text)
 
-        args.append(scriptFile)
+        args.append(scriptName)
 
-        sp.run(args=args, cwd=taskEnv.workspace)
+        ret = sp.call(args=args, cwd=taskEnv.workspace)
+        if ret != 0:
+            # TODO
+            raise RuntimeError("Script failed")
 
 
 class _StepActionExec(Step):
 
-    def __init__(self, name: str, config: Dict[str, Any]) -> None:
-        super().__init__(name, config)
-        self.target = getStr(config, str)
+    def __init__(self, config: Dict[str, Any]) -> None:
+        super().__init__(config)
+        self.target = getStr(config, "target")
 
     def run(self, taskEnv: TaskEnv):
-        pass
+        target = taskEnv.replace(self.target)
+        sp.run(args=target.split(), cwd=taskEnv.workspace)
 
 
 class _StepActionArchive(Step):
 
-    def __init__(self, name: str, config: Dict[str, Any]) -> None:
-        super().__init__(name, config)
-        self.target = getStr(config, str)
+    def __init__(self, config: Dict[str, Any]) -> None:
+        super().__init__(config)
+        self.target = getStr(config, "target")
 
     def run(self, taskEnv: TaskEnv):
-        pass
+        target = taskEnv.replace(self.target)
+        if not os.path.exists(target):
+            raise RuntimeError("target does not exist")
+        if not os.path.exists(taskEnv.archive):
+            os.makedirs(taskEnv.archive, exist_ok=True)
+        if os.path.isdir(target):
+            shutil.copytree(target,
+                            taskEnv.archive,
+                            symlinks=True,
+                            dirs_exist_ok=True)
+        else:
+            shutil.copy(target, taskEnv.archive)
 
 
-def makeStep(name: str, config: Dict[str, Any]) -> Step:
-    try:
-        val = getStr(config, "type")
-        stepType = strToStepType(val)
-    except KeyError:
-        stepType = strToStepType(name)
+def makeStep(config: Dict[str, Any]) -> Step:
+    val = getStr(config, "type")
+    stepType = strToStepType(val)
 
     match stepType:
         case StepType.Clone:
-            return _StepActionClone(name, config)
-        case StepType.Shell:
-            return _StepActionShell(name, config)
+            return _StepActionClone(config)
+        case StepType.Script:
+            return _StepActionScript(config)
         case StepType.Exec:
-            return _StepActionExec(name, config)
+            return _StepActionExec(config)
         case StepType.Archive:
-            return _StepActionArchive(name, config)
+            return _StepActionArchive(config)

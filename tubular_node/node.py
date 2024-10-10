@@ -4,8 +4,14 @@ from typing import Dict, Any
 import os
 from collections import deque
 
+from pydantic import BaseModel
+
 from tubular.config_loader import load_configs
 from tubular.pipeline import Pipeline
+from tubular import git_cmds
+from tubular.task import Task
+from tubular.yaml import loadYAML
+from tubular.task_env import TaskEnv
 
 
 class NodeStatus(enum.IntEnum):
@@ -13,11 +19,24 @@ class NodeStatus(enum.IntEnum):
     Active = enum.auto()
 
 
+class TaskRequest(BaseModel):
+    repo_url: str
+    branch: str
+    task_path: str
+    args: Dict[str, str]
+
+    def getRepoPath(self):
+        return os.path.join(git_cmds.getRepoName(self.repo_url), self.branch)
+
+
+# TODO clean up old pipeline repos/branches?
+
+
 class NodeState:
 
     def __init__(self) -> None:
         self.workspaceDir = ""
-        self.taskQueue: deque[Pipeline] = deque()
+        self.taskQueue: deque[TaskRequest] = deque()
 
         self.status = NodeStatus.Idle
         self.workerThread = threading.Thread()
@@ -48,15 +67,34 @@ class NodeState:
                     self.taskQueueCV.wait()
                 if not self.shouldRun:
                     break
-                pipeline = self.taskQueue.popleft()
-            self.runTask(pipeline)
+                task = self.taskQueue.popleft()
+            self.status = NodeStatus.Active
+            self.runTask(task)
+            self.status = NodeStatus.Idle
 
-    def queueTask(self, repo: str, pipeline: str, args: Dict[str, Any]):
+    def queueTask(self, task: TaskRequest):
         with self.taskQueueCV:
-            # TODO
+            self.taskQueue.append(task)
             self.taskQueueCV.notify()
 
-    def runTask(self, pipeline: Pipeline):
-        # TODO check if repo exists
-        # TODO pipeline repo branches?
-        pass
+    def runTask(self, taskReq: TaskRequest):
+        repoDir = os.path.join(self.workspaceDir, taskReq.getRepoPath())
+        if not os.path.exists(repoDir):
+            print(f"Cloning task url: {taskReq.repo_url}")
+            git_cmds.clone(taskReq.repo_url, taskReq.branch, repoDir)
+        else:
+            git_cmds.pull(repoDir)
+
+        taskFile = os.path.join(repoDir, taskReq.task_path)
+        taskConfig = loadYAML(taskFile)
+        task = Task(taskReq.task_path, taskConfig)
+        taskWorkspace = os.path.join(self.workspaceDir, taskReq.getRepoPath(),
+                                     f'{taskReq.task_path}.workspace')
+
+        if not os.path.isdir(taskWorkspace):
+            os.makedirs(taskWorkspace, exist_ok=True)
+
+        taskEnv = TaskEnv(taskWorkspace, taskReq.args)
+
+        task.run(taskEnv)
+        print("Task complete")

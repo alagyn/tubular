@@ -1,10 +1,6 @@
 import os
 
-from yaml import load, dump
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
+from tubular.yaml import loadYAML
 
 
 def load_configs():
@@ -18,6 +14,4 @@ def load_configs():
             f"Cannot find config file: {cfgFile}, or TUBULAR_CONFIG variable not defined"
         )
 
-    with open(cfgFile, mode='wb') as f:
-        config = load(f, Loader)
-    return config
+    return loadYAML(cfgFile)

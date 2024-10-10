@@ -1,10 +1,8 @@
 import os
-import enum
+from typing import Dict, List
+import re
 
-
-class TaskOS(enum.IntEnum):
-    Win = enum.auto()
-    Linux = enum.auto()
+_REPL_RE = re.compile(r"@\{(?P<arg>\w+)\}")
 
 
 class TaskEnv:
@@ -12,8 +10,20 @@ class TaskEnv:
     Various configs for the current task
     """
 
-    def __init__(self, workspace: str) -> None:
+    def __init__(self, workspace: str, args: Dict[str, str]) -> None:
         # TODO
         self.workspace = workspace
         self.archive = os.path.join(workspace, "archive")
-        self.os = TaskOS.Linux
+        self.args: Dict[str, str] = args
+        args["workspace"] = os.path.abspath(workspace)
+        self.taskStep = 0
+
+    def replace(self, text: str) -> str:
+
+        def _repl(key: re.Match) -> str:
+            try:
+                return self.args[key.group("arg")]
+            except KeyError:
+                return key.group()
+
+        return _REPL_RE.sub(_repl, text)
