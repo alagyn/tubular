@@ -135,8 +135,7 @@ class _StepActionArchive(Step):
         target = taskEnv.replace(self.target)
         if not os.path.exists(target):
             raise RuntimeError("target does not exist")
-        if not os.path.exists(taskEnv.archive):
-            os.makedirs(taskEnv.archive, exist_ok=True)
+
         if os.path.isdir(target):
             shutil.copytree(target,
                             taskEnv.archive,

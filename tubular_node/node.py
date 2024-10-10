@@ -86,15 +86,20 @@ class NodeState:
             git_cmds.pull(repoDir)
 
         taskFile = os.path.join(repoDir, taskReq.task_path)
+        taskName = os.path.splitext(taskReq.task_path)[0]
         taskConfig = loadYAML(taskFile)
-        task = Task(taskReq.task_path, taskConfig)
-        taskWorkspace = os.path.join(self.workspaceDir, taskReq.getRepoPath(),
-                                     f'{taskReq.task_path}.workspace')
+        task = Task(taskName, taskConfig)
+
+        taskDir = os.path.join(self.workspaceDir, taskReq.getRepoPath())
+        taskWorkspace = os.path.join(taskDir, f'{taskName}.workspace')
+        taskArchive = os.path.join(taskDir, f'{taskName}.archive')
 
         if not os.path.isdir(taskWorkspace):
             os.makedirs(taskWorkspace, exist_ok=True)
+        if not os.path.isdir(taskArchive):
+            os.makedirs(taskArchive, exist_ok=True)
 
-        taskEnv = TaskEnv(taskWorkspace, taskReq.args)
+        taskEnv = TaskEnv(taskWorkspace, taskArchive, taskReq.args)
 
         task.run(taskEnv)
         print("Task complete")
