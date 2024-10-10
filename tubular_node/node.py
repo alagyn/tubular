@@ -35,7 +35,7 @@ class TaskRequest(BaseModel):
 class NodeState:
 
     def __init__(self) -> None:
-        self.workspaceDir = ""
+        self.workspace = ""
         self.taskQueue: deque[TaskRequest] = deque()
 
         self.status = NodeStatus.Idle
@@ -45,10 +45,10 @@ class NodeState:
 
     def start(self):
         config = load_configs()
-        self.workspaceDir = config["node"]["workspace-root"]
+        self.workspace = config["node"]["workspace-root"]
 
-        if not os.path.exists(self.workspaceDir):
-            os.makedirs(self.workspaceDir, exist_ok=True)
+        if not os.path.exists(self.workspace):
+            os.makedirs(self.workspace, exist_ok=True)
 
         self.workerThread = threading.Thread(target=self.management_thread)
         self.workerThread.start()
@@ -78,19 +78,15 @@ class NodeState:
             self.taskQueueCV.notify()
 
     def runTask(self, taskReq: TaskRequest):
-        repoDir = os.path.join(self.workspaceDir, taskReq.getRepoPath())
-        if not os.path.exists(repoDir):
-            print(f"Cloning task url: {taskReq.repo_url}")
-            git_cmds.clone(taskReq.repo_url, taskReq.branch, repoDir)
-        else:
-            git_cmds.pull(repoDir)
+        repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
+        git_cmds.cloneOrPull(taskReq.repo_url, taskReq.branch, repoDir)
 
         taskFile = os.path.join(repoDir, taskReq.task_path)
         taskName = os.path.splitext(taskReq.task_path)[0]
         taskConfig = loadYAML(taskFile)
         task = Task(taskName, taskConfig)
 
-        taskDir = os.path.join(self.workspaceDir, taskReq.getRepoPath())
+        taskDir = os.path.join(self.workspace, taskReq.getRepoPath())
         taskWorkspace = os.path.join(taskDir, f'{taskName}.workspace')
         taskArchive = os.path.join(taskDir, f'{taskName}.archive')
 

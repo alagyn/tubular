@@ -67,12 +67,7 @@ class _StepActionClone(Step):
 
         path = os.path.join(taskEnv.workspace, git_cmds.getRepoName(url))
 
-        if not os.path.exists(path):
-            print(f"Cloning {url}:{branch} into {path}")
-            git_cmds.clone(url, branch, path)
-        else:
-            print(f"Pulling {url}:{branch} into {path}")
-            git_cmds.pull(path)
+        git_cmds.cloneOrPull(url, branch, path)
 
 
 class _StepActionScript(Step):

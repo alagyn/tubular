@@ -5,6 +5,7 @@ __pycache__/
 
 *.code-workspace
 test-workspace/
+tubular.yaml
 
 # C extensions
 *.so

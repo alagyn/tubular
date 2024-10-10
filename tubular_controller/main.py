@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from tubular_controller.controller import ControllerState
+from tubular_controller.controller import ControllerState, PipelineReq
 
 CTRL_STATE = ControllerState()
 
@@ -25,3 +25,8 @@ async def root():
 @app.get("/pipelines")
 async def getPipelines():
     pass
+
+
+@app.post("/pipelines")
+async def queuePipeline(pipelineReq: PipelineReq):
+    CTRL_STATE.queuePipeline(pipelineReq)

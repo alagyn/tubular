@@ -4,9 +4,10 @@ controller:
 
 pipelines:
   myPipelines:
-    repo: "git@github.com:alagyn/tubular"
+    repo: "git@github.com:alagyn/tubular-tests"
     # default-branch: main
     paths:
+      - .
       - piplines
       - tests
       - other

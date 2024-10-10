@@ -1,2 +1,22 @@
+# Node configs
 node:
-  workspace-root: test-workspace
+  workspace-root: test-workspace/node
+
+# Controller configs
+controller:
+  workspace: test-workspace/ctrl
+  # TODO git credentials
+
+pipelines:
+  myPipelines:
+    repo: "git@github.com:alagyn/tubular-tests"
+    # default-branch: main
+    paths:
+      - .
+
+nodes:
+  localhost:
+    port: 8008
+    tags:
+      - linux
+      - build

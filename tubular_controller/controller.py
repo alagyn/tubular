@@ -1,4 +1,12 @@
+import os
+
+from pydantic import BaseModel
+from typing import Dict, Any
+
 from tubular.config_loader import load_configs
+from tubular import git_cmds
+from tubular.yaml import loadYAML
+from tubular.pipeline import Pipeline
 
 
 class Node:
@@ -17,6 +25,16 @@ class PipelineRepo:
         self.name = name
         self.url = url
         self.paths = paths
+
+
+class PipelineReq(BaseModel):
+    repo_url: str
+    branch: str
+    pipeline_path: str
+    args: Dict[str, str]
+
+    def getRepoPath(self):
+        return os.path.join(git_cmds.getRepoName(self.repo_url), self.branch)
 
 
 class ControllerState:
@@ -50,3 +68,12 @@ class ControllerState:
 
     def stop(self):
         pass
+
+    def queuePipeline(self, pipelineReq: PipelineReq):
+        repoDir = os.path.join(self.workspace, pipelineReq.getRepoPath())
+        git_cmds.cloneOrPull(pipelineReq.repo_url, pipelineReq.branch, repoDir)
+
+        pipeFile = os.path.join(repoDir, pipelineReq.pipeline_path)
+        pipeName = os.path.splitext(pipelineReq.pipeline_path)[0]
+        pipeConfig = loadYAML(pipeFile)
+        pipeline = Pipeline(pipeName, pipeConfig)
