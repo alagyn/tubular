@@ -25,14 +25,15 @@ class Task:
 
     def __init__(self, req: TaskRequest, repoPath: str) -> None:
 
-        self.file = os.path.join(repoPath, req.task_path)
+        self.file = req.task_path
         self.name = os.path.splitext(req.task_path)[0]
-        config = loadYAML(self.file)
+        config = loadYAML(os.path.join(repoPath, self.file))
 
         try:
             self.display = config['meta']['display']
         except KeyError:
             self.display = self.name
+        self.uuid = req.uuid
 
         # whitelist tags
         self.whiteTags: set[str] = set()

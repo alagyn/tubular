@@ -33,17 +33,24 @@ class Node:
             "repo_url": pipeline.repo_url,
             "branch": pipeline.branch,
             "task_path": task.file,
+            "uuid": task.uuid.hex,
             "args": pipeline.args
         }
+        print(args)
         # TODO error check
         ret = requests.post(url=f'{self._url}/queue', json=args, timeout=5)
         print(ret.json())
 
     def updateStatus(self):
         print(f"checking '{self.name}:{self.port}'")
-        ret = requests.get(url=f'http://{self.hostname}:{self.port}/status',
-                           timeout=5)
-        self.status = NodeStatus[ret.json()['status']]
+        try:
+            ret = requests.get(
+                url=f'http://{self.hostname}:{self.port}/status', timeout=5)
+            self.status = NodeStatus[ret.json()['status']]
+        except requests.Timeout:
+            self.status = NodeStatus.Offline
+        except requests.ConnectionError:
+            self.status = NodeStatus.Offline
         print(self.name, self.status.name)
 
 

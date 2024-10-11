@@ -22,14 +22,20 @@ class Pipeline:
 
     def __init__(self, req: PipelineReq, repoPath: str) -> None:
 
-        self.file = os.path.join(repoPath, req.pipeline_path)
+        self.file = req.pipeline_path
         self.name = os.path.splitext(req.pipeline_path)[0]
-        config = loadYAML(self.file)
+        config = loadYAML(os.path.join(repoPath, self.file))
 
         self.repo_url = req.repo_url
         self.branch = req.branch
         self.path = req.pipeline_path
-        self.args = req.args
+        self.args = {}
+        try:
+            self.args.update(config["args"])
+        except KeyError:
+            pass
+        # Overwrite defaults with user supplied
+        self.args.update(req.args)
 
         try:
             self.display = config['meta']['display']
