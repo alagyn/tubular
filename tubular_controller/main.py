@@ -14,7 +14,7 @@ async def lifespan(add: FastAPI):
     CTRL_STATE.stop()
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/")
