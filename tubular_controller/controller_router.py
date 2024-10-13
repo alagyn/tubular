@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
 from tubular_controller.controller import ControllerState, PipelineReq
@@ -23,10 +24,23 @@ async def root():
 
 
 @app.get("/pipelines")
-async def getPipelines():
-    pass
+async def getPipelines(branch: str | None = None):
+    try:
+        return CTRL_STATE.getPipelines(branch)
+    except Exception as err:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            content={"msg": str(err)})
 
 
-@app.post("/pipelines")
+@app.post("/pipelines", status_code=status.HTTP_201_CREATED)
 async def queuePipeline(pipelineReq: PipelineReq):
-    CTRL_STATE.queuePipeline(pipelineReq)
+    try:
+        CTRL_STATE.queuePipeline(pipelineReq)
+    except Exception as err:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            content={"msg": str(err)})
+
+
+@app.get("/node_status")
+async def getNodeStatus() -> dict[str, str]:
+    return CTRL_STATE.getNodeStatus()

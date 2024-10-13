@@ -9,24 +9,19 @@ from tubular.yaml import loadYAML
 
 
 class PipelineReq(BaseModel):
-    repo_url: str
     branch: str
     pipeline_path: str
     args: Dict[str, str]
 
-    def getRepoPath(self):
-        return os.path.join(git_cmds.getRepoName(self.repo_url), self.branch)
-
 
 class Pipeline:
 
-    def __init__(self, req: PipelineReq, repoPath: str) -> None:
+    def __init__(self, repoUrl: str, req: PipelineReq, repoPath: str) -> None:
 
         self.file = req.pipeline_path
         self.name = os.path.splitext(req.pipeline_path)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
 
-        self.repo_url = req.repo_url
         self.branch = req.branch
         self.path = req.pipeline_path
         self.args = {}
@@ -45,8 +40,7 @@ class Pipeline:
         self.stages: list[Stage] = []
         for stageConfig in config['stages']:
             self.stages.append(
-                Stage(self.repo_url, self.branch, repoPath, stageConfig,
-                      self.args))
+                Stage(repoUrl, self.branch, repoPath, stageConfig, self.args))
 
     def run(self):
         pass

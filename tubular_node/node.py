@@ -36,6 +36,7 @@ class NodeState:
     def start(self):
         config = load_configs()
         self.workspace = config["node"]["workspace-root"]
+        git_cmds.initWorkspace(self.workspace)
 
         if not os.path.exists(self.workspace):
             os.makedirs(self.workspace, exist_ok=True)
