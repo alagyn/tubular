@@ -1,47 +1,72 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+import { ref, computed, shallowReadonly, shallowRef } from 'vue'
+
+import Homepage from './components/Homepage.vue';
+import Pipelines from './components/Pipelines.vue';
+import Nodes from './components/Nodes.vue';
+import NotFound from './components/NotFound.vue';
+
+const menuItems = shallowRef([
+  { route: "#/", title: "Home", page: Homepage },
+  { route: "#/pipelines", title: "Pipelines", page: Pipelines },
+  { route: "#/nodes", title: "Nodes", page: Nodes }
+])
+
+var routes = {}
+
+function makeRoutes(item)
+{
+  routes[item.route.slice(1)] = item.page;
+}
+
+menuItems.value.forEach(makeRoutes);
+
+const currentPath = ref(window.location.hash)
+
+window.addEventListener('hashchange', () =>
+{
+  currentPath.value = window.location.hash
+})
+
+const currentView = computed(() =>
+{
+  return routes[currentPath.value.slice(1) || '/'] || NotFound
+})
+
 </script>
 
 <template>
   <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
   </header>
 
   <main>
-    <TheWelcome />
+    <div id="layout">
+      <!-- Menu toggle -->
+      <a href="#menu" id="menuLink" class="menu-link">
+        <!-- Hamburger icon -->
+        <span></span>
+      </a>
+
+      <div id="menu">
+        <div class="pure-menu">
+          <a class="pure-menu-heading" href="#/">Tubular</a>
+
+          <ul class="pure-menu-list">
+            <li v-for="page in menuItems" class="pure-menu-item">
+              <a :href="page.route" class="pure-menu-link">{{ page.title }}</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="main">
+        <div class="content">
+          <component :is="currentView" />
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-}
-</style>
+<style scoped></style>
