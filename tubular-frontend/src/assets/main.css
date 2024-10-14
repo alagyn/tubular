@@ -49,7 +49,7 @@ This is the parent `<div>` that contains the menu and the content area.
 The content `<div>` is where all your content goes.
 */
 .content {
-  margin: 0 auto;
+  margin: 1em 0;
   padding: 0 2em;
   max-width: 800px;
   margin-bottom: 50px;

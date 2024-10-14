@@ -34,8 +34,9 @@ def clone(url: str, branch: str, path: str):
 def pull(path: str, branch: str):
     _runCmd(["git", "fetch", "--depth=1"], path)
     _runCmd(["git", "reset", "--hard", f"origin/{branch}"], path)
+
     # TODO make this optional?
-    _runCmd(["git", "clean", "-dfx"], path)
+    # _runCmd(["git", "clean", "-dfx"], path)
 
 
 def cloneOrPull(url: str, branch: str, path: str):

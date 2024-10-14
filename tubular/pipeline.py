@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from tubular.stage import Stage
 from tubular import git_cmds
 from tubular.yaml import loadYAML
+from tubular import pipeline_db
 
 
 class PipelineReq(BaseModel):
@@ -24,6 +25,15 @@ class Pipeline:
 
         self.branch = req.branch
         self.path = req.pipeline_path
+        self.archive = os.path.join(repoPath, f'{self.name}.archive')
+
+        if not os.path.exists(self.archive):
+            os.makedirs(self.archive, exist_ok=True)
+
+        dbfile = os.path.join(self.archive, 'pipeline.db')
+
+        self._db = pipeline_db.inst.getDB(dbfile)
+
         self.args = {}
         try:
             self.args.update(config["args"])
@@ -33,9 +43,12 @@ class Pipeline:
         self.args.update(req.args)
 
         try:
-            self.display = config['meta']['display']
+            meta = config['meta']
+            self.display = str(meta.get('display', self.name))
+            self.maxRuns = int(meta.get('keep-runs', 0))
         except KeyError:
             self.display = self.name
+            self.maxRuns = 0
 
         self.stages: list[Stage] = []
         for stageConfig in config['stages']:
@@ -43,4 +56,4 @@ class Pipeline:
                 Stage(repoUrl, self.branch, repoPath, stageConfig, self.args))
 
     def run(self):
-        pass
+        runNum = self._db.getNextRunNum()

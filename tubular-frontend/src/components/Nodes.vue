@@ -11,8 +11,6 @@ function getNodeStatus()
         (response) =>
         {
             nodes.value = []
-            console.log(response)
-            console.log(response.data)
             for (let key in response.data)
             {
                 nodes.value.push({ name: key, status: response.data[key] });
@@ -30,14 +28,29 @@ onMounted(() =>
 </script>
 
 <template>
-    <div>Nodes</div>
     <div>
-        <a class="pure-button" @click="getNodeStatus">Refresh</a>
-        <ul>
-            <li v-for="node in nodes">
-                {{ node.name }}: {{ node.status }}
-            </li>
-        </ul>
-
+        <h1>Nodes</h1>
+        <a class="pure-button pure-button-primary" @click="getNodeStatus">Refresh</a>
+    </div>
+    <br />
+    <div>
+        <table class="pure-table nodetable">
+            <thead>
+                <tr>
+                    <th>Node</th>
+                    <th>Status</th>
+                    <th>Task</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="node in nodes">
+                    <td>{{ node.name }}</td>
+                    <td>{{ node.status }} </td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </template>
+
+<style scoped></style>

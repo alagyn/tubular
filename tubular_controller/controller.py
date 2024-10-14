@@ -4,6 +4,7 @@ from typing import Dict, Any
 import threading
 import time
 import glob
+from collections import defaultdict
 
 import requests
 
@@ -118,6 +119,9 @@ class ControllerState:
 
         self._lastNodeCheck = 0
 
+        self._branchLocks: dict[str, threading.Semaphore] = defaultdict(
+            threading.Semaphore)
+
     def start(self):
         config = load_configs()
 
@@ -184,6 +188,9 @@ class ControllerState:
 
     def queuePipeline(self, pipelineReq: PipelineReq):
         # TODO chuck this into a thread?
+        path = self._getRepoPath(pipelineReq.branch)
+        self._branchLocks[path].acquire()
+
         repoDir = self._cloneOrPullRepo(pipelineReq.branch)
         pipeline = Pipeline(self.pipelineRepoUrl, pipelineReq, repoDir)
 
