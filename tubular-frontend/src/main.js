@@ -1,5 +1,5 @@
-import './assets/main.css'
 import 'purecss/build/pure.css'
+import './assets/main.css'
 
 import { createApp } from 'vue'
 import App from './App.vue'

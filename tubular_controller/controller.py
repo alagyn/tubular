@@ -13,7 +13,7 @@ from tubular import git_cmds
 from tubular.pipeline import Pipeline, PipelineReq
 from tubular.stage import Stage
 from tubular.task import Task
-from tubular_node.node import NodeStatus
+from tubular_node.node import NodeStatus, PipelineStatus
 
 NODE_UPDATE_PERIOD = 2
 
@@ -30,26 +30,30 @@ class Node:
 
         self._url = f"http://{self.hostname}:{self.port}"
 
+        self.currentTask: Task | None = None
+
     def sendTask(self, url: str, pipeline: Pipeline, task: Task):
         print("sending task to", self.name)
+        self.currentTask = task
         args = {
             "repo_url": url,
             "branch": pipeline.branch,
             "task_path": task.file,
-            "uuid": task.uuid.hex,
             "args": pipeline.args
         }
-        print(args)
         # TODO error check
-        ret = requests.post(url=f'{self._url}/queue', json=args, timeout=5)
-        print(ret.json())
+        requests.post(url=f'{self._url}/queue', json=args, timeout=5)
 
     def updateStatus(self):
         print(f"checking '{self.name}:{self.port}'")
         try:
             ret = requests.get(
                 url=f'http://{self.hostname}:{self.port}/status', timeout=2.5)
-            self.status = NodeStatus[ret.json()['status']]
+            data = ret.json()
+            self.status = NodeStatus[data['status']]
+
+            if self.currentTask is not None:
+                self.currentTask.status = PipelineStatus[data['task_status']]
         except requests.Timeout:
             self.status = NodeStatus.Offline
         except requests.ConnectionError:
@@ -183,24 +187,33 @@ class ControllerState:
 
                 if len(self.taskQueue) > 0:
                     # Force sleep while waiting for nodes?
-                    # TODO better ways of doing this
+                    # TODO probably better ways of doing this
                     time.sleep(1)
 
     def queuePipeline(self, pipelineReq: PipelineReq):
-        # TODO chuck this into a thread?
+        threading.Thread(target=self._runPipelineThread,
+                         args=(pipelineReq, )).start()
+
+    def _runPipelineThread(self, pipelineReq: PipelineReq):
         path = self._getRepoPath(pipelineReq.branch)
         self._branchLocks[path].acquire()
 
         repoDir = self._cloneOrPullRepo(pipelineReq.branch)
         pipeline = Pipeline(self.pipelineRepoUrl, pipelineReq, repoDir)
 
+        start = time.time()
+
         for stage in pipeline.stages:
             self.runStage(pipeline, stage)
+            if pipeline.status != PipelineStatus.Running:
+                break
+
+        end = time.time()
+
+        pipeline.save(start, end)
 
     def runStage(self, pipeline: Pipeline, stage: Stage):
         for task in stage.tasks:
-            taskUUID = uuid.uuid4()
-
             availableNodes: list[Node] = []
             for x in self.nodes:
                 # make sure all of the whitelisted tags are present
@@ -220,6 +233,16 @@ class ControllerState:
                 self.taskQueue.push(
                     QueueTask(pipeline, task, set(availableNodes)))
                 self.taskQueueCV.notify()
+
+        # wait for every task to complete
+        for task in stage.tasks:
+            status = task.waitForComplete()
+
+            # TODO retrieve artifacts?
+            # probably throw into another thread
+
+            if status != PipelineStatus.Success:
+                pipeline.status = status
 
     def updateNodeStatus(self):
         curTime = time.time()
@@ -262,6 +285,10 @@ class ControllerState:
                         case "steps:":
                             break
 
-        out = [os.path.relpath(x, path) for x in pipelines]
+        pipelines = [os.path.relpath(x, path) for x in pipelines]
+
+        out = []
+        for x in pipelines:
+            out.append({"name": x, "timestamp": "TODO", "status": "TODO"})
 
         return out

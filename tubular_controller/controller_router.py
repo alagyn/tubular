@@ -21,13 +21,9 @@ app = FastAPI(lifespan=lifespan)
 apiRouter = routing.APIRouter(prefix="/api")
 
 
-@apiRouter.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-
 @apiRouter.get("/pipelines")
 async def getPipelines(branch: str | None = None):
+    # TODO cache results
     try:
         return CTRL_STATE.getPipelines(branch)
     except Exception as err:

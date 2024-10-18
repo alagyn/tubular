@@ -7,6 +7,7 @@ from tubular.stage import Stage
 from tubular import git_cmds
 from tubular.yaml import loadYAML
 from tubular import pipeline_db
+from tubular.enums import PipelineStatus
 
 
 class PipelineReq(BaseModel):
@@ -22,6 +23,8 @@ class Pipeline:
         self.file = req.pipeline_path
         self.name = os.path.splitext(req.pipeline_path)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
+
+        self.status = PipelineStatus.Running
 
         self.branch = req.branch
         self.path = req.pipeline_path
@@ -50,10 +53,14 @@ class Pipeline:
             self.display = self.name
             self.maxRuns = 0
 
+        # TODO catch errors? set status to Error
+
         self.stages: list[Stage] = []
         for stageConfig in config['stages']:
             self.stages.append(
                 Stage(repoUrl, self.branch, repoPath, stageConfig, self.args))
 
-    def run(self):
+    def save(self, startTime: float, endTime: float):
         runNum = self._db.getNextRunNum()
+        self._db.addRun(runNum, startTime, endTime - startTime, self.status,
+                        self.maxRuns)

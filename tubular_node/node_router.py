@@ -27,7 +27,7 @@ async def root():
 async def getStatus():
     return {
         "status": NODE_STATE.status.name,
-        "tasks": NODE_STATE.taskQueue,
+        "task_status": NODE_STATE.taskStatus.name,
     }
 
 

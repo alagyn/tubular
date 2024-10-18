@@ -3,16 +3,19 @@ import { ref, computed, shallowReadonly, shallowRef } from 'vue'
 
 import Homepage from './components/Homepage.vue';
 import Pipelines from './components/Pipelines.vue';
+import PipelineHistory from './components/PipelineHistory.vue';
 import Nodes from './components/Nodes.vue';
 import NotFound from './components/NotFound.vue';
 
 const menuItems = shallowRef([
   { route: "#/", title: "Home", page: Homepage },
   { route: "#/pipelines", title: "Pipelines", page: Pipelines },
-  { route: "#/nodes", title: "Nodes", page: Nodes }
+  { route: "#/nodes", title: "Nodes", page: Nodes },
 ])
 
-var routes = {}
+var routes = {
+  "/view_pipeline": PipelineHistory
+}
 
 function makeRoutes(item)
 {
@@ -22,10 +25,23 @@ function makeRoutes(item)
 menuItems.value.forEach(makeRoutes);
 
 const currentPath = ref(window.location.hash)
+let currentPathArgs = {}
 
 window.addEventListener('hashchange', () =>
 {
-  currentPath.value = window.location.hash
+  let temp = window.location.hash.split("?", 1)
+
+  currentPath.value = temp[0]
+  currentPathArgs = {}
+  if (temp.length > 1)
+  {
+    let argStrs = temp[1].split("&")
+    for (let arg in argStrs)
+    {
+      let argV = arg.split("=", 1)
+      currentPathArgs[argV[0]] = argV[1]
+    }
+  }
 })
 
 const currentView = computed(() =>

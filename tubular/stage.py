@@ -24,6 +24,5 @@ class Stage:
                 branch=branch,
                 task_path=taskFile,
                 args=args,
-                uuid=uuid.uuid4(),
             )
             self.tasks.append(Task(req, repoPath))

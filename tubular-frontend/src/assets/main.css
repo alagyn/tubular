@@ -14,6 +14,10 @@ body {
   height: auto;
 }
 
+.button-small {
+  font-size: 85%;
+}
+
 /*
 Add transition to containers so they can push in and out.
 */
