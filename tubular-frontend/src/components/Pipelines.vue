@@ -34,6 +34,7 @@ onMounted(() =>
       <table v-else class="pure-table">
         <tbody>
           <tr v-for="p in pipelines">
+            <!-- TODO change color based on status -->
             <td>
               <button :href="'#/view_pipeline?pipeline=' + p.name" class="button-small pure-button">{{ p.name
                 }}</button>

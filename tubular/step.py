@@ -14,6 +14,7 @@ class StepType(enum.IntEnum):
     Script = enum.auto()
     Exec = enum.auto()
     Archive = enum.auto()
+    # TODO GetArchive, copy paths from previous stages archives
 
 
 def strToStepType(e: str) -> StepType:

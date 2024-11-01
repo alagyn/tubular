@@ -27,6 +27,15 @@ def _runCmd(args, cwd=None):
     os.remove(tempFile)
 
 
+def _captureCmd(args, cwd=None) -> str:
+    ret = sp.run(args=args, cwd=cwd, stdout=sp.PIPE, stderr=sp.STDOUT)
+    if ret.returncode != 0:
+        raise RuntimeError(
+            f"Error running git command, {cwd=}: {' '.join(args)}\n{ret.stdout}"
+        )
+    return ret.stdout.decode()
+
+
 def clone(url: str, branch: str, path: str):
     _runCmd(["git", "clone", url, f"--branch={branch}", "--depth=1", path])
 
@@ -51,3 +60,14 @@ def getRepoName(url: str) -> str:
     if stripped.endswith(".git"):
         stripped = stripped[:-4]
     return stripped.split("/")[-1]
+
+
+def getBranches(url: str) -> list[str]:
+    output = _captureCmd(["git", "ls-remote", "-b", url])
+    out = []
+    for line in output.splitlines():
+        branch = line.split("\t")[1]
+        if branch.startswith("refs/heads/"):
+            branch = branch[11:]
+        out.append(branch)
+    return out

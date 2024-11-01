@@ -33,10 +33,6 @@ class Pipeline:
         if not os.path.exists(self.archive):
             os.makedirs(self.archive, exist_ok=True)
 
-        dbfile = os.path.join(self.archive, 'pipeline.db')
-
-        self._db = pipeline_db.inst.getDB(dbfile)
-
         self.args = {}
         try:
             self.args.update(config["args"])
@@ -59,8 +55,3 @@ class Pipeline:
         for stageConfig in config['stages']:
             self.stages.append(
                 Stage(repoUrl, self.branch, repoPath, stageConfig, self.args))
-
-    def save(self, startTime: float, endTime: float):
-        runNum = self._db.getNextRunNum()
-        self._db.addRun(runNum, startTime, endTime - startTime, self.status,
-                        self.maxRuns)

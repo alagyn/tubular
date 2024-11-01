@@ -14,8 +14,10 @@ from tubular.pipeline import Pipeline, PipelineReq
 from tubular.stage import Stage
 from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
+from tubular.pipeline_db import PipelineDB
 
 NODE_UPDATE_PERIOD = 2
+PIPELINE_UPDATE_PERIOD = 30
 
 
 class Node:
@@ -45,20 +47,19 @@ class Node:
         requests.post(url=f'{self._url}/queue', json=args, timeout=5)
 
     def updateStatus(self):
-        print(f"checking '{self.name}:{self.port}'")
         try:
-            ret = requests.get(
-                url=f'http://{self.hostname}:{self.port}/status', timeout=2.5)
+            ret = requests.get(url=f'{self._url}/status', timeout=2)
             data = ret.json()
             self.status = NodeStatus[data['status']]
 
-            if self.currentTask is not None:
-                self.currentTask.status = PipelineStatus[data['task_status']]
+            taskStatus = PipelineStatus[data["task_status"]]
+
+            if self.currentTask is not None and taskStatus != PipelineStatus.Running:
+                self.currentTask.setStatus(taskStatus)
         except requests.Timeout:
             self.status = NodeStatus.Offline
         except requests.ConnectionError:
             self.status = NodeStatus.Offline
-        print(self.name, self.status.name)
 
 
 class QueueTask:
@@ -104,6 +105,13 @@ class TaskQueue:
         return self.size
 
 
+class _PipelineCache:
+
+    def __init__(self, pipelines: list[str], checkTime: float) -> None:
+        self.pipelines = pipelines
+        self.time = checkTime
+
+
 class ControllerState:
 
     def __init__(self) -> None:
@@ -122,6 +130,9 @@ class ControllerState:
         self.taskQueue = TaskQueue()
 
         self._lastNodeCheck = 0
+        self._tasksWaiting = 0
+
+        self._pipelineCache: dict[str, _PipelineCache] = {}
 
         self._branchLocks: dict[str, threading.Semaphore] = defaultdict(
             threading.Semaphore)
@@ -133,6 +144,9 @@ class ControllerState:
         self.workspace = ctrlConfigs["workspace"]
 
         git_cmds.initWorkspace(self.workspace)
+
+        dbFile = os.path.join(self.workspace, "tubular.db")
+        self._db = PipelineDB(dbFile)
 
         pipeConfigs = config["pipelines"]
         self.pipelineRepoUrl = pipeConfigs["url"]
@@ -167,8 +181,9 @@ class ControllerState:
 
     def management_thread(self):
         while True:
+            needSleep = False
             with self.taskQueueCV:
-                if len(self.taskQueue) == 0:
+                if len(self.taskQueue) == 0 and self._tasksWaiting == 0:
                     self.taskQueueCV.wait()
                 if not self.shouldRun:
                     break
@@ -188,7 +203,11 @@ class ControllerState:
                 if len(self.taskQueue) > 0:
                     # Force sleep while waiting for nodes?
                     # TODO probably better ways of doing this
-                    time.sleep(1)
+                    needSleep = True
+
+            # do this outside the mutex
+            if needSleep:
+                time.sleep(1)
 
     def queuePipeline(self, pipelineReq: PipelineReq):
         threading.Thread(target=self._runPipelineThread,
@@ -196,21 +215,27 @@ class ControllerState:
 
     def _runPipelineThread(self, pipelineReq: PipelineReq):
         path = self._getRepoPath(pipelineReq.branch)
-        self._branchLocks[path].acquire()
+        with self._branchLocks[path]:
+            repoDir = self._cloneOrPullRepo(pipelineReq.branch)
+            pipeline = Pipeline(self.pipelineRepoUrl, pipelineReq, repoDir)
 
-        repoDir = self._cloneOrPullRepo(pipelineReq.branch)
-        pipeline = Pipeline(self.pipelineRepoUrl, pipelineReq, repoDir)
+            pipelineID, runNum = self._db.getPipelineIDAndNextRun(
+                pipeline.path)
 
-        start = time.time()
+            start = time.time()
 
-        for stage in pipeline.stages:
-            self.runStage(pipeline, stage)
-            if pipeline.status != PipelineStatus.Running:
-                break
+            for stage in pipeline.stages:
+                self.runStage(pipeline, stage)
+                if pipeline.status != PipelineStatus.Running:
+                    break
 
-        end = time.time()
+            if pipeline.status == PipelineStatus.Running:
+                pipeline.status = PipelineStatus.Success
 
-        pipeline.save(start, end)
+            end = time.time()
+
+            self._db.addRun(pipelineID, runNum, start, end - start,
+                            pipeline.status, pipeline.maxRuns)
 
     def runStage(self, pipeline: Pipeline, stage: Stage):
         for task in stage.tasks:
@@ -236,13 +261,21 @@ class ControllerState:
 
         # wait for every task to complete
         for task in stage.tasks:
+            with self.taskQueueCV:
+                self._tasksWaiting += 1
+                # Make sure the thread is unlocked
+                self.taskQueueCV.notify()
             status = task.waitForComplete()
+            self._tasksWaiting -= 1
 
             # TODO retrieve artifacts?
-            # probably throw into another thread
+            # probably throw into another thread?
+            # lets us copy stuff while other tasks complete
 
             if status != PipelineStatus.Success:
                 pipeline.status = status
+
+        print(f"Stage complete: {stage.display}")
 
     def updateNodeStatus(self):
         curTime = time.time()
@@ -266,10 +299,8 @@ class ControllerState:
         git_cmds.cloneOrPull(self.pipelineRepoUrl, branch, path)
         return path
 
-    def getPipelines(self, branch: str | None) -> list[str]:
-        if branch is None:
-            branch = self.pipelineRepoDefBranch
-
+    def _getPipelineCache(self, branch: str) -> _PipelineCache:
+        print(f"updating pipeline cache {branch=}")
         path = self._cloneOrPullRepo(branch)
 
         pipelines: list[str] = []
@@ -286,9 +317,35 @@ class ControllerState:
                             break
 
         pipelines = [os.path.relpath(x, path) for x in pipelines]
+        out = _PipelineCache(pipelines, time.time())
+        self._pipelineCache[branch] = out
+        return out
+
+    def getPipelines(self, branch: str | None) -> list[str]:
+        if branch is None:
+            branch = self.pipelineRepoDefBranch
+
+        try:
+            cache = self._pipelineCache[branch]
+            if time.time() - cache.time > PIPELINE_UPDATE_PERIOD:
+                cache = self._getPipelineCache(branch)
+            else:
+                print("using cache")
+        except KeyError:
+            cache = self._getPipelineCache(branch)
 
         out = []
-        for x in pipelines:
-            out.append({"name": x, "timestamp": "TODO", "status": "TODO"})
+        for x in cache.pipelines:
+            print("checking last run", x)
+            run = self._db.getLastRun(x)
+            data = {"name": x}
+            if run is None:
+                data["timestamp"] = "Not Run"
+                data["status"] = "Not Run"
+            else:
+                timestamp = time.localtime(run[1])
+                data["timestamp"] = time.strftime("%x %X", timestamp)
+                data["status"] = run[3].name
+            out.append(data)
 
         return out

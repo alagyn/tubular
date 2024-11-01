@@ -2,6 +2,7 @@ from fastapi import FastAPI, Response, status, routing
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+import traceback
 
 from tubular_controller.controller import ControllerState, PipelineReq
 
@@ -27,6 +28,7 @@ async def getPipelines(branch: str | None = None):
     try:
         return CTRL_STATE.getPipelines(branch)
     except Exception as err:
+        traceback.print_exception(err, chain=True)
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
                             content={"msg": str(err)})
 
@@ -36,6 +38,7 @@ async def queuePipeline(pipelineReq: PipelineReq):
     try:
         CTRL_STATE.queuePipeline(pipelineReq)
     except Exception as err:
+        traceback.print_exception(err, chain=True)
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
                             content={"msg": str(err)})
 

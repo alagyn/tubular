@@ -4,13 +4,13 @@ import enum
 class PipelineStatus(enum.IntEnum):
 
     # Pipeline definition error
-    Error = enum.auto()
+    Error = 0
     # Pipeline runtime error
-    Fail = enum.auto()
+    Fail = 1
     # In progress
-    Running = enum.auto()
+    Running = 2
     # Success
-    Success = enum.auto()
+    Success = 3
 
 
 class NodeStatus(enum.IntEnum):
