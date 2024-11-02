@@ -224,6 +224,8 @@ class ControllerState:
 
             start = time.time()
 
+            self._db.addRun(pipelineID, runNum, start, pipeline.maxRuns)
+
             for stage in pipeline.stages:
                 self.runStage(pipeline, stage)
                 if pipeline.status != PipelineStatus.Running:
@@ -234,8 +236,8 @@ class ControllerState:
 
             end = time.time()
 
-            self._db.addRun(pipelineID, runNum, start, end - start,
-                            pipeline.status, pipeline.maxRuns)
+            self._db.setRunStatus(pipelineID, runNum, end - start,
+                                  pipeline.status)
 
     def runStage(self, pipeline: Pipeline, stage: Stage):
         for task in stage.tasks:
@@ -337,15 +339,33 @@ class ControllerState:
         out = []
         for x in cache.pipelines:
             print("checking last run", x)
-            run = self._db.getLastRun(x)
+            pId = self._db.getPipelineId(x)
+            run = self._db.getLastRun(pId)
             data = {"name": x}
             if run is None:
                 data["timestamp"] = "Not Run"
                 data["status"] = "Not Run"
             else:
-                timestamp = time.localtime(run[1])
+                timestamp = time.localtime(run.startTime)
                 data["timestamp"] = time.strftime("%x %X", timestamp)
-                data["status"] = run[3].name
+                data["status"] = run.status.name
             out.append(data)
+
+        return out
+
+    def getRuns(self, pipelinePath: str) -> list[dict[str, Any]]:
+        pId = self._db.getPipelineId(pipelinePath)
+        runs = self._db.getRuns(pId)
+
+        out = []
+
+        for run in runs:
+            timestamp = time.localtime(run.startTime)
+            out.append({
+                "run": run.runNum,
+                "timestamp": time.strftime("%x %X", timestamp),
+                "duration": run.duration,
+                "status": run.status.name
+            })
 
         return out

@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios';
 
-
 const nodes = ref([]);
 
 function getNodeStatus()

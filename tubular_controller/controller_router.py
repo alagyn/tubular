@@ -43,6 +43,16 @@ async def queuePipeline(pipelineReq: PipelineReq):
                             content={"msg": str(err)})
 
 
+@apiRouter.get("/runs")
+async def getRuns(pipelinePath: str):
+    try:
+        return CTRL_STATE.getRuns(pipelinePath)
+    except Exception as err:
+        traceback.print_exception(err, chain=True)
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            content={"msg": str(err)})
+
+
 @apiRouter.get("/node_status")
 async def getNodeStatus() -> dict[str, str]:
     return CTRL_STATE.getNodeStatus()

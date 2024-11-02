@@ -24,6 +24,15 @@ RETURNING
     id
 """
 
+PIPELINES_GET_ID = """
+SELECT
+    id
+FROM
+    pipelines
+WHERE
+    path = ?
+"""
+
 # this immediately updates the run value so that we don't
 # have any race conditions
 PIPELINES_GET_NEXT_RUN = """
@@ -54,7 +63,19 @@ RUNS_ADD = """
 INSERT INTO runs
     (pipeline, run, start_ts, duration_ms, status)
 VALUES
-    (:pipeline_id, :run, :start_ts, :duration_ms, :status)
+    (:pipeline_id, :run, :start_ts, 0, 2)
+"""
+
+RUNS_SET_DATA = """
+UPDATE
+    runs
+SET
+    duration_ms = :duration_ms,
+    status = :status
+WHERE
+    pipeline = :pipeline_id
+    AND
+    run = :run
 """
 
 RUNS_GET_NUM_FOR_ID = """
@@ -80,15 +101,20 @@ SELECT
     run, start_ts, duration_ms, status
 FROM
     runs
-INNER JOIN
-    pipelines
-ON
-    runs.pipeline = pipelines.id
 WHERE
-    pipelines.path = ?
+    pipeline = ?
 ORDER BY
     runs.run DESC
 LIMIT 1
+"""
+
+RUNS_GET_FOR_PIPELINE = """
+SELECT
+    run, start_ts, duration_ms, status
+FROM
+    runs
+WHERE
+    pipeline = ?
 """
 # yapf: enable
 
@@ -103,6 +129,17 @@ def lock(func):
             return func(self, *args, **kwargs)
 
     return wrapper
+
+
+class Run:
+
+    def __init__(self, pipelineId: int, runNum: int, startTime: float,
+                 duration: float, status: int) -> None:
+        self.pipelineId = pipelineId
+        self.runNum = runNum
+        self.startTime = startTime
+        self.duration = duration
+        self.status = PipelineStatus(status)
 
 
 class PipelineDB:
@@ -137,14 +174,11 @@ class PipelineDB:
         return pId, run
 
     @lock
-    def addRun(self, pipelineID: int, runNum: int, start: float,
-               duration: float, status: PipelineStatus, maxRuns: int):
+    def addRun(self, pipelineID: int, runNum: int, start: float, maxRuns: int):
         values = {
             "pipeline_id": pipelineID,
             "run": runNum,
             "start_ts": int(start * 1000),
-            "duration_ms": int(duration * 1000),
-            "status": status.value
         }
 
         print("Adding run", values)
@@ -164,17 +198,57 @@ class PipelineDB:
         self._dbCon.commit()
 
     @lock
-    def getLastRun(
-            self, pipelinePath: str
-    ) -> tuple[int, float, float, PipelineStatus] | None:
-        res = self._dbCur.execute(RUNS_GET_LAST_FOR_PIPELINE, (pipelinePath, ))
+    def setRunStatus(self, pipelineID: int, runNum: int, duration: float,
+                     status: PipelineStatus):
+        values = {
+            "pipeline_id": pipelineID,
+            "run": runNum,
+            "duration_ms": int(duration * 1000),
+            "status": status.value
+        }
+
+        self._dbCur.execute(RUNS_SET_DATA, values)
+        self._dbCon.commit()
+
+    @lock
+    def getPipelineId(self, pipelinePath: str) -> int:
+        ret = self._dbCur.execute(PIPELINES_GET_ID, (pipelinePath, ))
+        val = ret.fetchone()
+        if val is None:
+            res = self._dbCur.execute(PIPELINES_ADD, (pipelinePath, ))
+            pId = res.fetchone()[0]
+        else:
+            pId = val[0]
+
+        return pId
+
+    @lock
+    def getLastRun(self, pipelineId: int) -> Run | None:
+        res = self._dbCur.execute(RUNS_GET_LAST_FOR_PIPELINE, (pipelineId, ))
         x = res.fetchone()
         if x is None:
             return None
 
-        return (
+        return Run(
+            pipelineId,
             int(x[0]),
             float(x[1] / 1000),
             float(x[2] / 1000),
-            PipelineStatus(x[3]),
+            x[3],
         )
+
+    @lock
+    def getRuns(self, pipelineId: int) -> list[Run]:
+        res = self._dbCur.execute(RUNS_GET_FOR_PIPELINE, (pipelineId, ))
+        out = []
+        for x in res.fetchall():
+            out.append(
+                Run(
+                    pipelineId,
+                    int(x[0]),
+                    float(x[1] / 1000),
+                    float(x[2] / 1000),
+                    x[3],
+                ))
+
+        return out

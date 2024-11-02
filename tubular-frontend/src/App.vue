@@ -32,6 +32,8 @@ window.addEventListener('hashchange', () =>
   let temp = window.location.hash.split("?", 1)
 
   currentPath.value = temp[0]
+
+  console.log(currentPath.value)
   currentPathArgs = {}
   if (temp.length > 1)
   {
