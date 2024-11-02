@@ -7,6 +7,8 @@ import PipelineHistory from './components/PipelineHistory.vue';
 import Nodes from './components/Nodes.vue';
 import NotFound from './components/NotFound.vue';
 
+import parsePath from './path_utils.js';
+
 const menuItems = shallowRef([
   { route: "#/", title: "Home", page: Homepage },
   { route: "#/pipelines", title: "Pipelines", page: Pipelines },
@@ -24,26 +26,11 @@ function makeRoutes(item)
 
 menuItems.value.forEach(makeRoutes);
 
-const currentPath = ref(window.location.hash)
-let currentPathArgs = {}
+const currentPath = ref(parsePath(window.location.hash, {}))
 
 window.addEventListener('hashchange', () =>
 {
-  let temp = window.location.hash.split("?", 1)
-
-  currentPath.value = temp[0]
-
-  console.log(currentPath.value)
-  currentPathArgs = {}
-  if (temp.length > 1)
-  {
-    let argStrs = temp[1].split("&")
-    for (let arg in argStrs)
-    {
-      let argV = arg.split("=", 1)
-      currentPathArgs[argV[0]] = argV[1]
-    }
-  }
+  currentPath.value = parsePath(window.location.hash, {})
 })
 
 const currentView = computed(() =>

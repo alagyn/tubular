@@ -32,7 +32,8 @@ class NodeState:
             os.makedirs(self.workspace, exist_ok=True)
 
     def stop(self):
-        self.workerThread.join()
+        if self.workerThread.is_alive():
+            self.workerThread.join()
 
     def queueTask(self, task: TaskRequest):
         if self.status == NodeStatus.Active:

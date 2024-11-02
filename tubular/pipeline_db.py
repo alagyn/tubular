@@ -51,6 +51,7 @@ RUNS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs
 (
     pipeline INTEGER,
+    branch TEXT,
     run INTEGER,
     start_ts INTEGER,
     duration_ms INTEGER,
@@ -61,9 +62,9 @@ CREATE TABLE IF NOT EXISTS runs
 
 RUNS_ADD = """
 INSERT INTO runs
-    (pipeline, run, start_ts, duration_ms, status)
+    (pipeline, branch, run, start_ts, duration_ms, status)
 VALUES
-    (:pipeline_id, :run, :start_ts, 0, 2)
+    (:pipeline_id, :branch, :run, :start_ts, 0, 2)
 """
 
 RUNS_SET_DATA = """
@@ -110,7 +111,7 @@ LIMIT 1
 
 RUNS_GET_FOR_PIPELINE = """
 SELECT
-    run, start_ts, duration_ms, status
+    branch, run, start_ts, duration_ms, status
 FROM
     runs
 WHERE
@@ -133,9 +134,10 @@ def lock(func):
 
 class Run:
 
-    def __init__(self, pipelineId: int, runNum: int, startTime: float,
-                 duration: float, status: int) -> None:
+    def __init__(self, pipelineId: int, branch: str, runNum: int,
+                 startTime: float, duration: float, status: int) -> None:
         self.pipelineId = pipelineId
+        self.branch = branch
         self.runNum = runNum
         self.startTime = startTime
         self.duration = duration
@@ -174,9 +176,11 @@ class PipelineDB:
         return pId, run
 
     @lock
-    def addRun(self, pipelineID: int, runNum: int, start: float, maxRuns: int):
+    def addRun(self, pipelineID: int, runNum: int, branch: str, start: float,
+               maxRuns: int):
         values = {
             "pipeline_id": pipelineID,
+            "branch": branch,
             "run": runNum,
             "start_ts": int(start * 1000),
         }
@@ -231,10 +235,11 @@ class PipelineDB:
 
         return Run(
             pipelineId,
-            int(x[0]),
-            float(x[1] / 1000),
+            str(x[0]),
+            int(x[1]),
             float(x[2] / 1000),
-            x[3],
+            float(x[3] / 1000),
+            x[4],
         )
 
     @lock
@@ -245,10 +250,11 @@ class PipelineDB:
             out.append(
                 Run(
                     pipelineId,
-                    int(x[0]),
-                    float(x[1] / 1000),
+                    str(x[0]),
+                    int(x[1]),
                     float(x[2] / 1000),
-                    x[3],
+                    float(x[3] / 1000),
+                    x[4],
                 ))
 
         return out

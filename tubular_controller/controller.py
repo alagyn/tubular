@@ -224,7 +224,8 @@ class ControllerState:
 
             start = time.time()
 
-            self._db.addRun(pipelineID, runNum, start, pipeline.maxRuns)
+            self._db.addRun(pipelineID, runNum, pipelineReq.branch, start,
+                            pipeline.maxRuns)
 
             for stage in pipeline.stages:
                 self.runStage(pipeline, stage)
@@ -239,17 +240,17 @@ class ControllerState:
             self._db.setRunStatus(pipelineID, runNum, end - start,
                                   pipeline.status)
 
+            print(f"Pipeline complete: {pipeline.display}")
+
     def runStage(self, pipeline: Pipeline, stage: Stage):
         for task in stage.tasks:
             availableNodes: list[Node] = []
             for x in self.nodes:
                 # make sure all of the whitelisted tags are present
                 if len(task.whiteTags - x.tags) > 0:
-                    print("missing", task.whiteTags - x.tags)
                     continue
                 # make sure none of the blacklisted are there
                 if len(task.blackTags & x.tags) > 0:
-                    print("has", task.blackTags & x.tags)
                     continue
                 availableNodes.append(x)
 
@@ -363,6 +364,7 @@ class ControllerState:
             timestamp = time.localtime(run.startTime)
             out.append({
                 "run": run.runNum,
+                "branch": run.branch,
                 "timestamp": time.strftime("%x %X", timestamp),
                 "duration": run.duration,
                 "status": run.status.name
