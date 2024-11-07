@@ -19,7 +19,7 @@ INSERT INTO
     pipelines
     (path, next_run)
 VALUES
-    (:path, 1)
+    (:path, 0)
 RETURNING
     id
 """

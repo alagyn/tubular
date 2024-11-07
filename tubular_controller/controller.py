@@ -319,7 +319,7 @@ class ControllerState:
 
         pipelineFiles: list[str] = []
 
-        for file in glob.iglob(f'**.yaml', root_dir=path, recursive=True):
+        for file in glob.iglob(f'**/*.yaml', root_dir=path, recursive=True):
             print("checking file", file)
             fullPath = os.path.join(path, file)
             with open(fullPath, mode='r') as f:
