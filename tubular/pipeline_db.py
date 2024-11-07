@@ -116,6 +116,8 @@ FROM
     runs
 WHERE
     pipeline = ?
+ORDER BY
+    runs.run DESC
 """
 # yapf: enable
 

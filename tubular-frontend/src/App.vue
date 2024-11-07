@@ -6,6 +6,7 @@ import Pipelines from './components/Pipelines.vue';
 import PipelineHistory from './components/PipelineHistory.vue';
 import Nodes from './components/Nodes.vue';
 import NotFound from './components/NotFound.vue';
+import RunPipeline from './components/RunPipeline.vue';
 
 import parsePath from './path_utils.js';
 
@@ -16,7 +17,8 @@ const menuItems = shallowRef([
 ])
 
 var routes = {
-  "/view_pipeline": PipelineHistory
+  "/view_pipeline": PipelineHistory,
+  "/run_pipeline": RunPipeline
 }
 
 function makeRoutes(item)

@@ -216,6 +216,7 @@ class ControllerState:
                 time.sleep(1)
 
     def queuePipeline(self, pipelineReq: PipelineReq):
+        # TODO reject queue requests if pipeline repo has an update
         threading.Thread(target=self._runPipelineThread,
                          args=(pipelineReq, )).start()
 
@@ -234,9 +235,12 @@ class ControllerState:
             self._db.addRun(pipelineID, runNum, pipelineReq.branch, start,
                             pipeline.meta.maxRuns)
 
+            print(pipeline.stages)
+
             for stage in pipeline.stages:
                 self.runStage(pipeline, stage)
                 if pipeline.status != PipelineStatus.Running:
+                    print("Pipeline error")
                     break
 
             if pipeline.status == PipelineStatus.Running:
@@ -368,7 +372,7 @@ class ControllerState:
         return out
 
     def getPipelineArgs(self, pipelinePath: str,
-                        branch: str | None) -> dict[str, str]:
+                        branch: str | None) -> list[dict[str, str]]:
         if branch is None:
             branch = self.pipelineRepoDefBranch
         cache = self._getPipelineCache(branch)
@@ -377,7 +381,7 @@ class ControllerState:
         if pipeline is None:
             raise RuntimeError("Pipeline not found")
 
-        return pipeline.args
+        return [{"k": x[0], "v": x[1]} for x in pipeline.args]
 
     def getRuns(self, pipelinePath: str) -> list[dict[str, Any]]:
         pId = self._db.getPipelineId(pipelinePath)
@@ -387,12 +391,21 @@ class ControllerState:
 
         for run in runs:
             timestamp = time.localtime(run.startTime)
-            out.append({
+            if run.status == PipelineStatus.Running:
+                duration = time.time() - run.startTime
+            else:
+                duration = run.duration
+            data = {
                 "run": run.runNum,
                 "branch": run.branch,
                 "timestamp": time.strftime("%x %X", timestamp),
-                "duration": run.duration,
+                "duration": round(duration, 3),
                 "status": run.status.name
-            })
+            }
+
+            out.append(data)
 
         return out
+
+    def getBranches(self) -> list[str]:
+        return git_cmds.getBranches(self.pipelineRepoUrl)

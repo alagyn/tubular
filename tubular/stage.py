@@ -27,3 +27,6 @@ class Stage:
     def __init__(self, stageDef: StageDef) -> None:
         self.meta = stageDef
         self.tasks: list[Task] = [Task(x) for x in stageDef.tasks]
+
+    def __repr__(self) -> str:
+        return f"Stage('{self.meta.display}')"

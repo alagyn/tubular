@@ -68,6 +68,11 @@ async def getNodeStatus() -> dict[str, str]:
     return CTRL_STATE.getNodeStatus()
 
 
+@apiRouter.get("/branches")
+async def getBranches() -> list[str]:
+    return CTRL_STATE.getBranches()
+
+
 # mount these last
 app.include_router(apiRouter)
 app.mount("/", StaticFiles(directory="tubular-frontend/dist", html=True))

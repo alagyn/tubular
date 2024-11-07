@@ -13,7 +13,7 @@ from tubular.enums import PipelineStatus
 class PipelineReq(BaseModel):
     branch: str
     pipeline_path: str
-    args: Dict[str, str]
+    args: list[dict[str, str]]
 
 
 class PipelineDef:
@@ -23,7 +23,12 @@ class PipelineDef:
         self.name = os.path.splitext(self.file)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
 
-        self.args: dict[str, str] = config["args"]
+        try:
+            args: dict[str, Any] = config["args"]
+            self.args: list[tuple[str, str]] = [(key, str(val))
+                                                for (key, val) in args.items()]
+        except KeyError:
+            self.args = []
 
         try:
             meta = config['meta']
@@ -51,9 +56,10 @@ class Pipeline:
         if not os.path.exists(self.archive):
             os.makedirs(self.archive, exist_ok=True)
 
-        self.args = self.meta.args.copy()
+        self.args = {key: val for key, val in self.meta.args}
         # Overwrite defaults with user supplied
-        self.args.update(req.args)
+        for kvPair in req.args:
+            self.args[kvPair["k"]] = kvPair["v"]
 
         # TODO catch errors? set status to Error
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios';
 
 import parsePath from '../path_utils.js';
@@ -8,15 +8,6 @@ let args = {}
 parsePath(window.location.hash, args)
 
 const runs = ref([])
-
-function run_pipeline()
-{
-    axios.post("/api/pipelines", {
-        branch: "main", // TODO
-        pipeline_path: args.pipeline,
-        args: {} // TODO
-    })
-}
 
 function getRuns()
 {
@@ -29,9 +20,17 @@ function getRuns()
         )
 }
 
+let getRunsInterval = 0
+
 onMounted(() =>
 {
     getRuns()
+    getRunsInterval = window.setInterval(getRuns, 4000)
+})
+
+onUnmounted(() =>
+{
+    window.clearInterval(getRunsInterval)
 })
 
 </script>
@@ -41,7 +40,7 @@ onMounted(() =>
         View pipeline
 
         <div>
-            <a @click="run_pipeline" class="pure-button">Run</a>
+            <a :href="'#/run_pipeline?pipeline=' + args.pipeline" class="pure-button">Run</a>
         </div>
 
         <br>
