@@ -36,9 +36,10 @@ onMounted(() =>
           <tr v-for="p in pipelines">
             <!-- TODO change color based on status -->
             <td>
-              <a :href="'#/view_pipeline?pipeline=' + p.name" class="button-small pure-button">{{ p.name
+              <a :href="'#/view_pipeline?pipeline=' + p.path" class="button-small pure-button">{{ p.name
                 }}</a>
             </td>
+            <td>{{ p.path }}</td>
             <td>{{ p.timestamp }}</td>
             <td>{{ p.status }}</td>
           </tr>

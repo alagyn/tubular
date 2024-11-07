@@ -1,8 +1,6 @@
 export default function parsePath(path, argsOut)
 {
-    console.log(path)
     let questionPos = path.search("\\?")
-    console.log("questionPos: " + questionPos)
 
     let route = ""
     if(questionPos > 0)
@@ -30,8 +28,6 @@ export default function parsePath(path, argsOut)
             argsOut[argName] = argValue
         }
     }
-
-    console.log("route: " + route)
 
     return route
 }

@@ -315,9 +315,10 @@ class ControllerState:
 
         pipelineFiles: list[str] = []
 
-        for file in glob.iglob(f'{path}/**.yaml', recursive=True):
+        for file in glob.iglob(f'**.yaml', root_dir=path, recursive=True):
             print("checking file", file)
-            with open(file, mode='r') as f:
+            fullPath = os.path.join(path, file)
+            with open(fullPath, mode='r') as f:
                 for line in f:
                     match line.strip():
                         case "stages:":
