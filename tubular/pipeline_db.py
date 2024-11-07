@@ -99,7 +99,7 @@ WHERE
 
 RUNS_GET_LAST_FOR_PIPELINE = """
 SELECT
-    run, start_ts, duration_ms, status
+    branch, run, start_ts, duration_ms, status
 FROM
     runs
 WHERE

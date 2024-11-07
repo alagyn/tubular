@@ -43,6 +43,16 @@ async def queuePipeline(pipelineReq: PipelineReq):
                             content={"msg": str(err)})
 
 
+@apiRouter.get("/pipeline")
+async def getPipelineArgs(pipelinePath: str, branch: str | None):
+    try:
+        return CTRL_STATE.getPipelineArgs(pipelinePath, branch)
+    except Exception as err:
+        traceback.print_exception(err, chain=True)
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            content={"msg": str(err)})
+
+
 @apiRouter.get("/runs")
 async def getRuns(pipelinePath: str):
     try:

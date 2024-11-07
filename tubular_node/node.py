@@ -3,12 +3,9 @@ import threading
 from typing import Dict, Any
 import os
 
-from collections import deque
-
 from tubular.config_loader import load_configs
-from tubular.pipeline import Pipeline
 from tubular import git_cmds
-from tubular.task import Task, TaskRequest
+from tubular.task import Task, TaskDef, TaskRequest
 from tubular.enums import NodeStatus, PipelineStatus
 from tubular.task_env import TaskEnv
 
@@ -52,14 +49,15 @@ class NodeState:
         try:
             repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
             git_cmds.cloneOrPull(taskReq.repo_url, taskReq.branch, repoDir)
-            task = Task(taskReq, repoDir)
+            taskDef = TaskDef(repoDir, taskReq.task_path)
+            task = Task(taskDef)
         except:
             self.taskStatus = PipelineStatus.Error
             raise
 
         taskDir = os.path.join(self.workspace, taskReq.getRepoPath())
-        taskWorkspace = os.path.join(taskDir, f'{task.name}.workspace')
-        taskArchive = os.path.join(taskDir, f'{task.name}.archive')
+        taskWorkspace = os.path.join(taskDir, f'{task.meta.name}.workspace')
+        taskArchive = os.path.join(taskDir, f'{task.meta.name}.archive')
 
         if not os.path.isdir(taskWorkspace):
             os.makedirs(taskWorkspace, exist_ok=True)

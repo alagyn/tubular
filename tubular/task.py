@@ -21,17 +21,12 @@ class TaskRequest(BaseModel):
         return os.path.join(git_cmds.getRepoName(self.repo_url), self.branch)
 
 
-class Task:
+class TaskDef:
 
-    def __init__(self, req: TaskRequest, repoPath: str) -> None:
-
-        self.file = req.task_path
-        self.name = os.path.splitext(req.task_path)[0]
+    def __init__(self, repoPath: str, taskPath: str) -> None:
+        self.file = taskPath
+        self.name = os.path.splitext(taskPath)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
-
-        self.status = PipelineStatus.Running
-
-        self._statusNotify = threading.Condition()
 
         try:
             self.display = config['meta']['display']
@@ -44,14 +39,14 @@ class Task:
         self.blackTags: set[str] = set()
 
         try:
-            nodeReq = config['node']
+            nodeConfigs = config['node']
             try:
                 # TODO error check
-                self.whiteTags = set(nodeReq['requires'])
+                self.whiteTags = set(nodeConfigs['requires'])
             except KeyError:
                 pass
             try:
-                self.blackTags = set(nodeReq['avoids'])
+                self.blackTags = set(nodeConfigs['avoids'])
             except KeyError:
                 pass
         except KeyError:
@@ -63,6 +58,14 @@ class Task:
         for step in stepConfigs:
             self.steps.append(makeStep(step))
 
+
+class Task:
+
+    def __init__(self, taskDef: TaskDef) -> None:
+        self.meta = taskDef
+        self.status = PipelineStatus.Running
+        self._statusNotify = threading.Condition()
+
     def setStatus(self, status: PipelineStatus):
         with self._statusNotify:
             self.status = status
@@ -70,7 +73,7 @@ class Task:
                 self._statusNotify.notify_all()
 
     def run(self, taskEnv: TaskEnv):
-        for idx, step in enumerate(self.steps):
+        for idx, step in enumerate(self.meta.steps):
             print(f"Running step {step.display}")
             taskEnv.taskStep = idx
             step.run(taskEnv)

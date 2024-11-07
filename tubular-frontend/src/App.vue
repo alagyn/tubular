@@ -35,7 +35,12 @@ window.addEventListener('hashchange', () =>
 
 const currentView = computed(() =>
 {
-  return routes[currentPath.value.slice(1) || '/'] || NotFound
+  let x = routes[currentPath.value] || NotFound
+  if (x == NotFound)
+  {
+    console.log("path not found: '" + currentPath.value + "'")
+  }
+  return x
 })
 
 </script>

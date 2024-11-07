@@ -3,7 +3,7 @@ import os
 
 from pydantic import BaseModel
 
-from tubular.stage import Stage
+from tubular.stage import StageDef, Stage
 from tubular import git_cmds
 from tubular.yaml import loadYAML
 from tubular import pipeline_db
@@ -16,30 +16,14 @@ class PipelineReq(BaseModel):
     args: Dict[str, str]
 
 
-class Pipeline:
+class PipelineDef:
 
-    def __init__(self, repoUrl: str, req: PipelineReq, repoPath: str) -> None:
-
-        self.file = req.pipeline_path
-        self.name = os.path.splitext(req.pipeline_path)[0]
+    def __init__(self, repoPath: str, file: str) -> None:
+        self.file = file
+        self.name = os.path.splitext(self.file)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
 
-        self.status = PipelineStatus.Running
-
-        self.branch = req.branch
-        self.path = req.pipeline_path
-        self.archive = os.path.join(repoPath, f'{self.name}.archive')
-
-        if not os.path.exists(self.archive):
-            os.makedirs(self.archive, exist_ok=True)
-
-        self.args = {}
-        try:
-            self.args.update(config["args"])
-        except KeyError:
-            pass
-        # Overwrite defaults with user supplied
-        self.args.update(req.args)
+        self.args: dict[str, str] = config["args"]
 
         try:
             meta = config['meta']
@@ -49,9 +33,28 @@ class Pipeline:
             self.display = self.name
             self.maxRuns = 0
 
+        self.stages: list[StageDef] = []
+        for stageConfig in config['stages']:
+            self.stages.append(StageDef(repoPath, stageConfig))
+
+
+class Pipeline:
+
+    def __init__(self, pipelineDef: PipelineDef, req: PipelineReq,
+                 repoPath: str) -> None:
+        self.meta = pipelineDef
+        self.status = PipelineStatus.Running
+
+        self.branch = req.branch
+        self.archive = os.path.join(repoPath, f'{self.meta.name}.archive')
+
+        if not os.path.exists(self.archive):
+            os.makedirs(self.archive, exist_ok=True)
+
+        self.args = self.meta.args.copy()
+        # Overwrite defaults with user supplied
+        self.args.update(req.args)
+
         # TODO catch errors? set status to Error
 
-        self.stages: list[Stage] = []
-        for stageConfig in config['stages']:
-            self.stages.append(
-                Stage(repoUrl, self.branch, repoPath, stageConfig, self.args))
+        self.stages: list[Stage] = [Stage(x) for x in self.meta.stages]

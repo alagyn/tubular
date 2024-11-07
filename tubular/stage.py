@@ -2,15 +2,14 @@ from typing import Dict, Any
 import os
 import uuid
 
-from tubular.task import Task, TaskRequest
+from tubular.task import TaskDef, Task, TaskRequest
 
 
-class Stage:
+class StageDef:
 
-    def __init__(self, repo_url: str, branch: str, repoPath: str,
-                 config: Dict[str, Any], args) -> None:
+    def __init__(self, repoPath: str, config: Dict[str, Any]) -> None:
         self.display = config["display"]
-        self.tasks: list[Task] = []
+        self.tasks: list[TaskDef] = []
         for task in config['tasks']:
             if not isinstance(task, str):
                 # TODO
@@ -19,10 +18,12 @@ class Stage:
                 taskFile = task
             else:
                 taskFile = f'{task}.yaml'
-            req = TaskRequest(
-                repo_url=repo_url,
-                branch=branch,
-                task_path=taskFile,
-                args=args,
-            )
-            self.tasks.append(Task(req, repoPath))
+            t = TaskDef(repoPath, taskFile)
+            self.tasks.append(t)
+
+
+class Stage:
+
+    def __init__(self, stageDef: StageDef) -> None:
+        self.meta = stageDef
+        self.tasks: list[Task] = [Task(x) for x in stageDef.tasks]

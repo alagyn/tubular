@@ -1,8 +1,22 @@
 export default function parsePath(path, argsOut)
 {
+    console.log(path)
     let questionPos = path.search("\\?")
+    console.log("questionPos: " + questionPos)
 
-    let route = path.substr(0, questionPos)
+    let route = ""
+    if(questionPos > 0)
+    {
+        route = path.substr(0, questionPos)
+    }
+    else
+    {
+        route = path
+    }
+
+    // cut off #
+    route = route.substring(1)
+
     let args = path.substr(questionPos + 1)
 
     if (args.length > 0)
@@ -17,5 +31,7 @@ export default function parsePath(path, argsOut)
         }
     }
 
-  return route
+    console.log("route: " + route)
+
+    return route
 }

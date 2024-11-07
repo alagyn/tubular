@@ -10,7 +10,7 @@ import requests
 
 from tubular.config_loader import load_configs
 from tubular import git_cmds
-from tubular.pipeline import Pipeline, PipelineReq
+from tubular.pipeline import Pipeline, PipelineReq, PipelineDef
 from tubular.stage import Stage
 from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
@@ -40,7 +40,7 @@ class Node:
         args = {
             "repo_url": url,
             "branch": pipeline.branch,
-            "task_path": task.file,
+            "task_path": task.meta.file,
             "args": pipeline.args
         }
         # TODO error check
@@ -107,9 +107,15 @@ class TaskQueue:
 
 class _PipelineCache:
 
-    def __init__(self, pipelines: list[str], checkTime: float) -> None:
+    def __init__(self, pipelines: list[PipelineDef], checkTime: float) -> None:
         self.pipelines = pipelines
         self.time = checkTime
+
+    def getPipeline(self, path: str) -> PipelineDef | None:
+        for x in self.pipelines:
+            if x.file == path:
+                return x
+        return None
 
 
 class ControllerState:
@@ -217,15 +223,16 @@ class ControllerState:
         path = self._getRepoPath(pipelineReq.branch)
         with self._branchLocks[path]:
             repoDir = self._cloneOrPullRepo(pipelineReq.branch)
-            pipeline = Pipeline(self.pipelineRepoUrl, pipelineReq, repoDir)
+            pipelineDef = PipelineDef(repoDir, pipelineReq.pipeline_path)
+            pipeline = Pipeline(pipelineDef, pipelineReq, repoDir)
 
             pipelineID, runNum = self._db.getPipelineIDAndNextRun(
-                pipeline.path)
+                pipeline.meta.file)
 
             start = time.time()
 
             self._db.addRun(pipelineID, runNum, pipelineReq.branch, start,
-                            pipeline.maxRuns)
+                            pipeline.meta.maxRuns)
 
             for stage in pipeline.stages:
                 self.runStage(pipeline, stage)
@@ -240,17 +247,17 @@ class ControllerState:
             self._db.setRunStatus(pipelineID, runNum, end - start,
                                   pipeline.status)
 
-            print(f"Pipeline complete: {pipeline.display}")
+            print(f"Pipeline complete: {pipeline.meta.display}")
 
     def runStage(self, pipeline: Pipeline, stage: Stage):
         for task in stage.tasks:
             availableNodes: list[Node] = []
             for x in self.nodes:
                 # make sure all of the whitelisted tags are present
-                if len(task.whiteTags - x.tags) > 0:
+                if len(task.meta.whiteTags - x.tags) > 0:
                     continue
                 # make sure none of the blacklisted are there
-                if len(task.blackTags & x.tags) > 0:
+                if len(task.meta.blackTags & x.tags) > 0:
                     continue
                 availableNodes.append(x)
 
@@ -278,7 +285,7 @@ class ControllerState:
             if status != PipelineStatus.Success:
                 pipeline.status = status
 
-        print(f"Stage complete: {stage.display}")
+        print(f"Stage complete: {stage.meta.display}")
 
     def updateNodeStatus(self):
         curTime = time.time()
@@ -302,11 +309,11 @@ class ControllerState:
         git_cmds.cloneOrPull(self.pipelineRepoUrl, branch, path)
         return path
 
-    def _getPipelineCache(self, branch: str) -> _PipelineCache:
+    def _updatePipelineCache(self, branch: str) -> _PipelineCache:
         print(f"updating pipeline cache {branch=}")
         path = self._cloneOrPullRepo(branch)
 
-        pipelines: list[str] = []
+        pipelineFiles: list[str] = []
 
         for file in glob.iglob(f'{path}/**.yaml', recursive=True):
             print("checking file", file)
@@ -314,35 +321,40 @@ class ControllerState:
                 for line in f:
                     match line.strip():
                         case "stages:":
-                            pipelines.append(file)
+                            pipelineFiles.append(file)
                             break
                         case "steps:":
                             break
 
-        pipelines = [os.path.relpath(x, path) for x in pipelines]
+        pipelines = [PipelineDef(path, x) for x in pipelineFiles]
         out = _PipelineCache(pipelines, time.time())
         self._pipelineCache[branch] = out
         return out
+
+    def _getPipelineCache(self, branch: str) -> _PipelineCache:
+        try:
+            cache = self._pipelineCache[branch]
+            if time.time() - cache.time > PIPELINE_UPDATE_PERIOD:
+                cache = self._updatePipelineCache(branch)
+            else:
+                print("using cache")
+        except KeyError:
+            cache = self._updatePipelineCache(branch)
+
+        return cache
 
     def getPipelines(self, branch: str | None) -> list[str]:
         if branch is None:
             branch = self.pipelineRepoDefBranch
 
-        try:
-            cache = self._pipelineCache[branch]
-            if time.time() - cache.time > PIPELINE_UPDATE_PERIOD:
-                cache = self._getPipelineCache(branch)
-            else:
-                print("using cache")
-        except KeyError:
-            cache = self._getPipelineCache(branch)
+        cache = self._getPipelineCache(branch)
 
         out = []
         for x in cache.pipelines:
             print("checking last run", x)
-            pId = self._db.getPipelineId(x)
+            pId = self._db.getPipelineId(x.file)
             run = self._db.getLastRun(pId)
-            data = {"name": x}
+            data = {"name": x.display, "path": x.file}
             if run is None:
                 data["timestamp"] = "Not Run"
                 data["status"] = "Not Run"
@@ -353,6 +365,18 @@ class ControllerState:
             out.append(data)
 
         return out
+
+    def getPipelineArgs(self, pipelinePath: str,
+                        branch: str | None) -> dict[str, str]:
+        if branch is None:
+            branch = self.pipelineRepoDefBranch
+        cache = self._getPipelineCache(branch)
+
+        pipeline = cache.getPipeline(pipelinePath)
+        if pipeline is None:
+            raise RuntimeError("Pipeline not found")
+
+        return pipeline.args
 
     def getRuns(self, pipelinePath: str) -> list[dict[str, Any]]:
         pId = self._db.getPipelineId(pipelinePath)
