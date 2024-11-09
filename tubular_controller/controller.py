@@ -409,3 +409,35 @@ class ControllerState:
 
     def getBranches(self) -> list[str]:
         return git_cmds.getBranches(self.pipelineRepoUrl)
+
+    def getRunsStats(self) -> dict[str, Any]:
+        status = self._db.getLast50RunsStatus()
+
+        errors = 0
+        fails = 0
+        running = 0
+        queued = 0
+        success = 0
+
+        for x in status:
+            match x:
+                case PipelineStatus.Error:
+                    errors += 1
+                case PipelineStatus.Fail:
+                    fails += 1
+                case PipelineStatus.Running:
+                    running += 1
+                case PipelineStatus.Queued:
+                    queued += 1
+                case PipelineStatus.Success:
+                    success += 1
+
+        return {
+            "runs": {
+                "error": errors,
+                "fail": fails,
+                "running": running,
+                "queued": queued,
+                "success": success
+            }
+        }

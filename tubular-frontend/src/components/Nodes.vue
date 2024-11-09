@@ -23,7 +23,6 @@ onMounted(() =>
     getNodeStatus()
 })
 
-
 </script>
 
 <template>

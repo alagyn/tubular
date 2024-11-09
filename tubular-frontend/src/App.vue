@@ -8,7 +8,12 @@ import Nodes from './components/Nodes.vue';
 import NotFound from './components/NotFound.vue';
 import RunPipeline from './components/RunPipeline.vue';
 
+import { Chart as ChartJS } from 'chart.js';
+
 import parsePath from './path_utils.js';
+
+// Setup default colors
+ChartJS.defaults.color = "#FFF"
 
 const menuItems = shallowRef([
   { route: "#/", title: "Home", page: Homepage },

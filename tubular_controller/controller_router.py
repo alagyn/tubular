@@ -63,6 +63,11 @@ async def getRuns(pipelinePath: str):
                             content={"msg": str(err)})
 
 
+@apiRouter.get("/runs_stats")
+async def getRunsStats():
+    return CTRL_STATE.getRunsStats()
+
+
 @apiRouter.get("/node_status")
 async def getNodeStatus() -> dict[str, str]:
     return CTRL_STATE.getNodeStatus()

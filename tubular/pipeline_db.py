@@ -119,6 +119,17 @@ WHERE
 ORDER BY
     runs.run DESC
 """
+
+RUNS_GET_LAST_50_STATUS = """
+SELECT
+    status
+FROM
+    runs
+ORDER BY
+    run DESC
+LIMIT 50
+"""
+
 # yapf: enable
 
 
@@ -259,4 +270,10 @@ class PipelineDB:
                     x[4],
                 ))
 
+        return out
+
+    @lock
+    def getLast50RunsStatus(self) -> list[PipelineStatus]:
+        res = self._dbCur.execute(RUNS_GET_LAST_50_STATUS)
+        out = [PipelineStatus(x[0]) for x in res.fetchall()]
         return out
