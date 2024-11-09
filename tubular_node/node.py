@@ -1,13 +1,13 @@
-import enum
 import threading
-from typing import Dict, Any
 import os
+import shutil
 
 from tubular.config_loader import load_configs
 from tubular import git_cmds
 from tubular.task import Task, TaskDef, TaskRequest
 from tubular.enums import NodeStatus, PipelineStatus
 from tubular.task_env import TaskEnv
+from tubular.file_utils import compressArchive
 
 # TODO clean up old pipeline repos/branches?
 
@@ -46,23 +46,23 @@ class NodeState:
         self.workerThread.start()
 
     def runTask(self, taskReq: TaskRequest):
+        repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
         try:
-            repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
             git_cmds.cloneOrPull(taskReq.repo_url, taskReq.branch, repoDir)
             taskDef = TaskDef(repoDir, taskReq.task_path)
-            task = Task(taskDef)
+            task = Task(taskReq.repo_url, taskReq.branch, taskDef)
         except:
             self.taskStatus = PipelineStatus.Error
             raise
 
-        taskDir = os.path.join(self.workspace, taskReq.getRepoPath())
-        taskWorkspace = os.path.join(taskDir, f'{task.meta.name}.workspace')
-        taskArchive = os.path.join(taskDir, f'{task.meta.name}.archive')
+        taskWorkspace = os.path.join(repoDir, f'{task.meta.name}.workspace')
+        taskArchive = os.path.join(repoDir, f'{task.meta.name}.archive')
 
         if not os.path.isdir(taskWorkspace):
             os.makedirs(taskWorkspace, exist_ok=True)
-        if not os.path.isdir(taskArchive):
-            os.makedirs(taskArchive, exist_ok=True)
+
+        # Create archive dir
+        os.makedirs(taskArchive, exist_ok=True)
 
         taskEnv = TaskEnv(taskWorkspace, taskArchive, taskReq.args)
 
@@ -72,4 +72,15 @@ class NodeState:
         except:
             self.taskStatus = PipelineStatus.Fail
         print("Task complete")
+
+        compressArchive(taskArchive, f'{taskArchive}.zip')
+
+        # Clear archive dir
+        shutil.rmtree(taskArchive)
+
         self.status = NodeStatus.Idle
+
+    def getArchiveFile(self, taskReq: TaskRequest):
+        repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
+        task = TaskDef(repoDir, taskReq.task_path)
+        return os.path.join(repoDir, f'{task.name}.archive.zip')

@@ -10,7 +10,7 @@ CTRL_STATE = ControllerState()
 
 
 @asynccontextmanager
-async def lifespan(add: FastAPI):
+async def lifespan(app: FastAPI):
     # TODO load configs
     CTRL_STATE.start()
     yield
@@ -76,6 +76,11 @@ async def getNodeStatus() -> dict[str, str]:
 @apiRouter.get("/branches")
 async def getBranches() -> list[str]:
     return CTRL_STATE.getBranches()
+
+
+@apiRouter.get("/archive_list")
+async def getArchiveList(pipeline: str, branch: str, run: int) -> dict:
+    return CTRL_STATE.getArchiveList(pipeline, branch, run)
 
 
 # mount these last

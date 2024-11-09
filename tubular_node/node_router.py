@@ -3,6 +3,7 @@ from typing import Dict, Any
 from tubular_node.node import NodeState, TaskRequest
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 
 NODE_STATE = NodeState()
@@ -29,6 +30,12 @@ async def getStatus():
         "status": NODE_STATE.status.name,
         "task_status": NODE_STATE.taskStatus.name,
     }
+
+
+@app.get("/archive")
+async def getArchive(task: TaskRequest) -> FileResponse:
+    archive = NODE_STATE.getArchiveFile(task)
+    return FileResponse(archive)
 
 
 @app.post("/queue")

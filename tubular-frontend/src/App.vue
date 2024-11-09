@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, shallowReadonly, shallowRef } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
 
 import Homepage from './components/Homepage.vue';
 import Pipelines from './components/Pipelines.vue';
@@ -11,6 +11,7 @@ import RunPipeline from './components/RunPipeline.vue';
 import { Chart as ChartJS } from 'chart.js';
 
 import parsePath from './path_utils.js';
+import Archive from './components/Archive.vue';
 
 // Setup default colors
 ChartJS.defaults.color = "#FFF"
@@ -23,7 +24,8 @@ const menuItems = shallowRef([
 
 var routes = {
   "/view_pipeline": PipelineHistory,
-  "/run_pipeline": RunPipeline
+  "/run_pipeline": RunPipeline,
+  "/archive": Archive
 }
 
 function makeRoutes(item)

@@ -15,9 +15,12 @@ from tubular.stage import Stage
 from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
 from tubular.pipeline_db import PipelineDB
+from tubular.file_utils import decompressArchive
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
+
+# TODO cleanup old archives
 
 
 class Node:
@@ -34,28 +37,37 @@ class Node:
 
         self.currentTask: Task | None = None
 
-    def sendTask(self, url: str, pipeline: Pipeline, task: Task):
+    def sendTask(self, pipeline: Pipeline, task: Task):
         print("sending task to", self.name)
         self.currentTask = task
-        args = {
-            "repo_url": url,
-            "branch": pipeline.branch,
-            "task_path": task.meta.file,
-            "args": pipeline.args
-        }
-        # TODO error check
-        requests.post(url=f'{self._url}/queue', json=args, timeout=5)
+        args = task.toTaskReq(pipeline.args)
+        requests.post(url=f'{self._url}/queue',
+                      json=args.model_dump(),
+                      timeout=5)
+
+    def _downloadArchive(self, task: Task, finalStatus: PipelineStatus):
+        with requests.get(url=f'{self._url}/archive',
+                          stream=True,
+                          json=task.toTaskReq({}).model_dump()) as r:
+            r.raise_for_status()
+            with open(task.archiveFile, mode='wb') as f:
+                for chunk in r.iter_content():
+                    f.write(chunk)
+        # set status here so we wait till after the download
+        task.setStatus(finalStatus)
 
     def updateStatus(self):
         try:
             ret = requests.get(url=f'{self._url}/status', timeout=2)
             data = ret.json()
-            self.status = NodeStatus[data['status']]
 
             taskStatus = PipelineStatus[data["task_status"]]
 
             if self.currentTask is not None and taskStatus != PipelineStatus.Running:
-                self.currentTask.setStatus(taskStatus)
+                threading.Thread(target=self._downloadArchive,
+                                 args=(self.currentTask, taskStatus)).start()
+
+            self.status = NodeStatus[data['status']]
         except requests.Timeout:
             self.status = NodeStatus.Offline
         except requests.ConnectionError:
@@ -199,8 +211,7 @@ class ControllerState:
                 while cur != None:
                     for node in cur.availableNodes:
                         if node.status == NodeStatus.Idle:
-                            node.sendTask(self.pipelineRepoUrl, cur.pipeline,
-                                          cur.task)
+                            node.sendTask(cur.pipeline, cur.task)
                             self.taskQueue.unlink(cur)
                             node.status = NodeStatus.Active
                             break
@@ -225,10 +236,12 @@ class ControllerState:
         with self._branchLocks[path]:
             repoDir = self._cloneOrPullRepo(pipelineReq.branch)
             pipelineDef = PipelineDef(repoDir, pipelineReq.pipeline_path)
-            pipeline = Pipeline(pipelineDef, pipelineReq, repoDir)
 
             pipelineID, runNum = self._db.getPipelineIDAndNextRun(
-                pipeline.meta.file)
+                pipelineDef.file)
+
+            pipeline = Pipeline(self.pipelineRepoUrl, pipelineDef, pipelineReq,
+                                repoDir, runNum)
 
             start = time.time()
 
@@ -269,22 +282,17 @@ class ControllerState:
                 raise RuntimeError("No available nodes")
 
             with self.taskQueueCV:
+                self._tasksWaiting += 1
                 self.taskQueue.push(
                     QueueTask(pipeline, task, set(availableNodes)))
                 self.taskQueueCV.notify()
 
         # wait for every task to complete
         for task in stage.tasks:
-            with self.taskQueueCV:
-                self._tasksWaiting += 1
-                # Make sure the thread is unlocked
-                self.taskQueueCV.notify()
             status = task.waitForComplete()
             self._tasksWaiting -= 1
 
-            # TODO retrieve artifacts?
-            # probably throw into another thread?
-            # lets us copy stuff while other tasks complete
+            decompressArchive(task.archiveFile, pipeline.archive)
 
             if status != PipelineStatus.Success:
                 pipeline.status = status
@@ -409,6 +417,36 @@ class ControllerState:
 
     def getBranches(self) -> list[str]:
         return git_cmds.getBranches(self.pipelineRepoUrl)
+
+    def _buildArchiveList(self, parentPath: str, curPath: str, out: dict):
+        out['label'] = curPath
+
+        children = []
+        out['children'] = children
+
+        fullPath = os.path.join(parentPath, curPath)
+
+        for x in os.scandir(fullPath):
+            child = {}
+
+            if x.is_file():
+                child['label'] = x.name
+            else:
+                self._buildArchiveList(fullPath, x.name, child)
+
+            children.append(child)
+
+    def getArchiveList(self, pipeline: str, branch: str, run: int) -> dict:
+
+        repoPath = self._getRepoPath(branch)
+        pipelinePath = os.path.splitext(pipeline)[0]
+        archivePath = os.path.join(repoPath, f'{pipelinePath}.archive.{run}')
+
+        out = {}
+
+        self._buildArchiveList("", archivePath, out)
+
+        return out
 
     def getRunsStats(self) -> dict[str, Any]:
         status = self._db.getLast50RunsStatus()

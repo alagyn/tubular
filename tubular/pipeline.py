@@ -45,13 +45,14 @@ class PipelineDef:
 
 class Pipeline:
 
-    def __init__(self, pipelineDef: PipelineDef, req: PipelineReq,
-                 repoPath: str) -> None:
+    def __init__(self, repoUrl: str, pipelineDef: PipelineDef,
+                 req: PipelineReq, repoPath: str, runNum: int) -> None:
         self.meta = pipelineDef
         self.status = PipelineStatus.Running
 
         self.branch = req.branch
-        self.archive = os.path.join(repoPath, f'{self.meta.name}.archive')
+        self.archive = os.path.join(repoPath,
+                                    f'{self.meta.name}.archive.{runNum}')
 
         if not os.path.exists(self.archive):
             os.makedirs(self.archive, exist_ok=True)
@@ -63,4 +64,6 @@ class Pipeline:
 
         # TODO catch errors? set status to Error
 
-        self.stages: list[Stage] = [Stage(x) for x in self.meta.stages]
+        self.stages: list[Stage] = [
+            Stage(repoUrl, self.branch, x) for x in self.meta.stages
+        ]

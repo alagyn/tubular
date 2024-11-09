@@ -24,9 +24,11 @@ class StageDef:
 
 class Stage:
 
-    def __init__(self, stageDef: StageDef) -> None:
+    def __init__(self, repoUrl: str, branch: str, stageDef: StageDef) -> None:
         self.meta = stageDef
-        self.tasks: list[Task] = [Task(x) for x in stageDef.tasks]
+        self.tasks: list[Task] = [
+            Task(repoUrl, branch, x) for x in stageDef.tasks
+        ]
 
     def __repr__(self) -> str:
         return f"Stage('{self.meta.display}')"

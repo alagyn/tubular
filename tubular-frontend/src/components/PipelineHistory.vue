@@ -40,7 +40,7 @@ onUnmounted(() =>
         View pipeline
 
         <div>
-            <a :href="'#/run_pipeline?pipeline=' + args.pipeline" class="pure-button">Run</a>
+            <a :href="'#/run_pipeline?pipeline=' + args.pipeline" class="pure-button">New Run</a>
         </div>
 
         <br>
@@ -54,6 +54,7 @@ onUnmounted(() =>
                         <th>Timestamp</th>
                         <th>Duration</th>
                         <th>Status</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -63,6 +64,8 @@ onUnmounted(() =>
                         <td>{{ run.timestamp }}</td>
                         <td>{{ run.duration }}</td>
                         <td>{{ run.status }}</td>
+                        <td><a :href="'#/archive?pipeline=' + args.pipeline + '&branch=' + run.branch + '&run=' + run.run"
+                                class="pure-button">Archive</a></td>
                     </tr>
                 </tbody>
 

@@ -24,6 +24,7 @@ class TaskRequest(BaseModel):
 class TaskDef:
 
     def __init__(self, repoPath: str, taskPath: str) -> None:
+        self.repoPath = repoPath
         self.file = taskPath
         self.name = os.path.splitext(taskPath)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
@@ -61,10 +62,14 @@ class TaskDef:
 
 class Task:
 
-    def __init__(self, taskDef: TaskDef) -> None:
+    def __init__(self, repoUrl: str, branch: str, taskDef: TaskDef) -> None:
+        self.repoUrl = repoUrl
+        self.branch = branch
         self.meta = taskDef
         self.status = PipelineStatus.Running
         self._statusNotify = threading.Condition()
+        self.archiveFile = os.path.join(self.meta.repoPath,
+                                        f'{self.meta.name}.archive.zip')
 
     def setStatus(self, status: PipelineStatus):
         with self._statusNotify:
@@ -83,3 +88,9 @@ class Task:
             while self.status == PipelineStatus.Running:
                 self._statusNotify.wait()
             return self.status
+
+    def toTaskReq(self, args: dict[str, Any] = {}) -> TaskRequest:
+        return TaskRequest(repo_url=self.repoUrl,
+                           branch=self.branch,
+                           task_path=self.meta.file,
+                           args=args)

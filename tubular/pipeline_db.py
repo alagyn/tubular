@@ -130,6 +130,15 @@ ORDER BY
 LIMIT 50
 """
 
+RUNS_SET_RUNNING_ERROR = """
+UPDATE
+    runs
+SET
+    status = 0
+WHERE
+    status = 2
+"""
+
 # yapf: enable
 
 
@@ -172,7 +181,10 @@ class PipelineDB:
         if initDB:
             self._dbCur.execute(PIPELINES_SCHEMA)
             self._dbCur.execute(RUNS_SCHEMA)
-            self._dbCon.commit()
+        else:
+            # Make any running pipelines set to error
+            self._dbCur.execute(RUNS_SET_RUNNING_ERROR)
+        self._dbCon.commit()
 
     @lock
     def getPipelineIDAndNextRun(self, pipelinePath: str) -> tuple[int, int]:
