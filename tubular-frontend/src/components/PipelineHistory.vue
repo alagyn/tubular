@@ -9,6 +9,15 @@ parsePath(window.location.hash, args)
 
 const runs = ref([])
 
+const STATUS_TO_STYLE = {
+    "Error": "run-error",
+    "Fail": "run-fail",
+    "Running": "run-running",
+    "Queued": "run-queued",
+    "Success": "run-success",
+    "Not Run": ""
+}
+
 function getRuns()
 {
     axios.get("/api/runs?pipelinePath=" + args.pipeline)
@@ -63,7 +72,7 @@ onUnmounted(() =>
                         <td>{{ run.branch }}</td>
                         <td>{{ run.timestamp }}</td>
                         <td>{{ run.duration }}</td>
-                        <td>{{ run.status }}</td>
+                        <td :class="STATUS_TO_STYLE[run.status]">{{ run.status }}</td>
                         <td><a :href="'#/archive?pipeline=' + args.pipeline + '&branch=' + run.branch + '&run=' + run.run"
                                 class="pure-button">Archive</a></td>
                     </tr>
@@ -73,3 +82,25 @@ onUnmounted(() =>
         </div>
     </div>
 </template>
+
+<style>
+.run-error {
+    color: #eb0037;
+}
+
+.run-fail {
+    color: #eb9700;
+}
+
+.run-running {
+    color: #2864d7;
+}
+
+.run-queued {
+    color: #0ec0cf;
+}
+
+.run-success {
+    color: #25da30;
+}
+</style>
