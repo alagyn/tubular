@@ -64,6 +64,7 @@ onUnmounted(() =>
                         <th>Duration</th>
                         <th>Status</th>
                         <th></th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,6 +76,8 @@ onUnmounted(() =>
                         <td :class="STATUS_TO_STYLE[run.status]">{{ run.status }}</td>
                         <td><a :href="'#/archive?pipeline=' + args.pipeline + '&branch=' + run.branch + '&run=' + run.run"
                                 class="pure-button">Archive</a></td>
+                        <td><a :href="'#/output?pipeline=' + args.pipeline + '&branch=' + run.branch + '&run=' + run.run"
+                                class="pure-button">Output</a></td>
                     </tr>
                 </tbody>
 

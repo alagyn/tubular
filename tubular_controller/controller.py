@@ -5,6 +5,7 @@ import threading
 import time
 import glob
 from collections import defaultdict
+import traceback
 
 import requests
 
@@ -37,7 +38,7 @@ class Node:
 
         self.currentTask: Task | None = None
 
-        self._downloading = False
+        self._downloadThread: threading.Thread | None = None
 
     def sendTask(self, pipeline: Pipeline, task: Task):
         print("sending task to", self.name)
@@ -47,7 +48,7 @@ class Node:
                       json=args.model_dump(),
                       timeout=5)
 
-    def _downloadArchive(self, task: Task, finalStatus: PipelineStatus):
+    def _downloadArchive(self, task: Task, finalTaskStatus: PipelineStatus):
         args = task.toTaskReq({}).model_dump()
 
         # Download archived files
@@ -63,28 +64,37 @@ class Node:
         ensureParents(task.outputZipFile)
         with requests.get(url=f'{self._url}/output', stream=True,
                           json=args) as r:
-            print("downloading output to", task.outputZipFile)
             with open(task.outputZipFile, mode='wb') as f:
                 for chunk in r.iter_content():
                     f.write(chunk)
 
         # set status here so we wait till after the download
-        task.setStatus(finalStatus)
+        task.setStatus(finalTaskStatus)
 
     def updateStatus(self):
         try:
+            if self._downloadThread is not None:
+                if self._downloadThread.is_alive():
+                    # don't do anything until the download is complete
+                    return
+                else:
+                    self._downloadThread.join()
+                    self._downloadThread = None
+
             ret = requests.get(url=f'{self._url}/status', timeout=2)
             data = ret.json()
 
             taskStatus = PipelineStatus[data["task_status"]]
 
             if self.currentTask is not None and taskStatus != PipelineStatus.Running:
-                # TODO prevent attempting to download more than once
-                self._downloading = True
-                threading.Thread(target=self._downloadArchive,
-                                 args=(self.currentTask, taskStatus)).start()
-
-            self.status = NodeStatus[data['status']]
+                self._downloadThread = threading.Thread(
+                    target=self._downloadArchive,
+                    args=(self.currentTask, taskStatus))
+                self._downloadThread.start()
+                self.status = NodeStatus.Archiving
+                self.currentTask = None
+            else:
+                self.status = NodeStatus[data['status']]
         except requests.Timeout:
             self.status = NodeStatus.Offline
         except requests.ConnectionError:
@@ -93,12 +103,13 @@ class Node:
 
 class ArchiveLister:
 
-    def __init__(self, pipeline: str, branch: str, run: int,
-                 archivePath: str) -> None:
+    def __init__(self, pipeline: str, branch: str, run: int, archivePath: str,
+                 api: str) -> None:
         self.pipeline = pipeline
         self.branch = branch
         self.run = run
         self.archivePath = archivePath
+        self.api = api
 
     def getArchiveList(self) -> dict:
         out = {}
@@ -121,7 +132,7 @@ class ArchiveLister:
                 relPath = os.path.relpath(os.path.join(fullPath, x.name),
                                           self.archivePath)
                 child[
-                    'href'] = f'/api/archive?pipeline={self.pipeline}&branch={self.branch}&run={self.run}&file={relPath}'
+                    'href'] = f'/api/{self.api}?pipeline={self.pipeline}&branch={self.branch}&run={self.run}&file={relPath}'
             else:
                 self._buildArchiveList(fullPath, x.name, child)
 
@@ -334,7 +345,8 @@ class ControllerState:
                         print("Pipeline error")
                         break
             except Exception as err:
-                print("Error running pipeline")
+                print("Exception occurred while running pipeline")
+                traceback.print_exception(err, chain=True)
                 pipeline.status = PipelineStatus.Fail
 
             if pipeline.status == PipelineStatus.Running:
@@ -516,11 +528,9 @@ class ControllerState:
     def getArchiveList(self, pipeline: str, branch: str, run: int) -> dict:
 
         pipelineName = os.path.splitext(pipeline)[0]
-        archiveRoot = self._getArchivePath(branch, pipelineName, run)
-        archivePath = os.path.join(archiveRoot,
-                                   f'{pipelineName}.archive.{run}')
+        archivePath = self._getArchivePath(branch, pipelineName, run)
 
-        x = ArchiveLister(pipeline, branch, run, archivePath)
+        x = ArchiveLister(pipeline, branch, run, archivePath, "archive")
 
         return x.getArchiveList()
 
@@ -529,6 +539,25 @@ class ControllerState:
         pipelineName = os.path.splitext(pipeline)[0]
         archivePath = self._getArchivePath(branch, pipelineName, run)
         fullpath = sanitizeFilepath(archivePath, file)
+
+        if not os.path.isfile(fullpath):
+            raise RuntimeError(f"Path not found: '{file}'")
+
+        return fullpath
+
+    def getOutputList(self, pipeline: str, branch: str, run: int) -> dict:
+        pipelineName = os.path.splitext(pipeline)[0]
+        outputPath = self._getOutputPath(branch, pipelineName, run)
+
+        x = ArchiveLister(pipeline, branch, run, outputPath, "output")
+
+        return x.getArchiveList()
+
+    def getOutputFile(self, pipeline: str, branch: str, run: int,
+                      file: str) -> str:
+        pipelineName = os.path.splitext(pipeline)[0]
+        outputPath = self._getOutputPath(branch, pipelineName, run)
+        fullpath = sanitizeFilepath(outputPath, file)
 
         if not os.path.isfile(fullpath):
             raise RuntimeError(f"Path not found: '{file}'")

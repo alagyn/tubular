@@ -19,3 +19,4 @@ class NodeStatus(enum.IntEnum):
     Offline = enum.auto()
     Idle = enum.auto()
     Active = enum.auto()
+    Archiving = enum.auto()

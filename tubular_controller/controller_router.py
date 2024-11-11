@@ -89,6 +89,17 @@ async def getArchiveFile(pipeline: str, branch: str, run: int, file: str):
     return FileResponse(path)
 
 
+@apiRouter.get("/output_list")
+async def getOutputList(pipeline: str, branch: str, run: int) -> dict:
+    return CTRL_STATE.getOutputList(pipeline, branch, run)
+
+
+@apiRouter.get("/output")
+async def getOutputFile(pipeline: str, branch: str, run: int, file: str):
+    path = CTRL_STATE.getOutputFile(pipeline, branch, run, file)
+    return FileResponse(path)
+
+
 # mount these last
 app.include_router(apiRouter)
 app.mount("/", StaticFiles(directory="tubular-frontend/dist", html=True))
