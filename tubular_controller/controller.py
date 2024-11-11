@@ -11,7 +11,7 @@ import requests
 
 from tubular.config_loader import load_configs
 from tubular import git_cmds
-from tubular.pipeline import Pipeline, PipelineReq, PipelineDef
+from tubular.pipeline import Pipeline, PipelineReq, PipelineDef, formatPipelineName
 from tubular.stage import Stage
 from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
@@ -298,6 +298,7 @@ class ControllerState:
 
     def _runPipelineThread(self, pipelineReq: PipelineReq):
         path = self._getRepoPath(pipelineReq.branch)
+
         with self._branchLocks[path]:
             repoPath = self._cloneOrPullRepo(pipelineReq.branch)
             pipelineDef = PipelineDef(repoPath, pipelineReq.pipeline_path)
@@ -414,11 +415,11 @@ class ControllerState:
 
     def _getArchivePath(self, branch: str, name: str, runNum: int) -> str:
         return os.path.join(self._getBranchPath(branch), "archive",
-                            f'{name}.archive.{runNum}')
+                            f'{name}.{runNum}')
 
     def _getOutputPath(self, branch: str, name: str, runNum: int) -> str:
         return os.path.join(self._getBranchPath(branch), "output",
-                            f'{name}.output.{runNum}')
+                            f'{name}.{runNum}')
 
     def _cloneOrPullRepo(self, branch: str) -> str:
         """
@@ -429,13 +430,11 @@ class ControllerState:
         return path
 
     def _updatePipelineCache(self, branch: str) -> _PipelineCache:
-        print(f"updating pipeline cache {branch=}")
         path = self._cloneOrPullRepo(branch)
 
         pipelineFiles: list[str] = []
 
         for file in glob.iglob(f'**/*.yaml', root_dir=path, recursive=True):
-            print("checking file", file)
             fullPath = os.path.join(path, file)
             with open(fullPath, mode='r') as f:
                 for line in f:
@@ -526,8 +525,7 @@ class ControllerState:
         return git_cmds.getBranches(self.pipelineRepoUrl)
 
     def getArchiveList(self, pipeline: str, branch: str, run: int) -> dict:
-
-        pipelineName = os.path.splitext(pipeline)[0]
+        pipelineName = formatPipelineName(pipeline)
         archivePath = self._getArchivePath(branch, pipelineName, run)
 
         x = ArchiveLister(pipeline, branch, run, archivePath, "archive")
@@ -536,7 +534,7 @@ class ControllerState:
 
     def getArchiveFile(self, pipeline: str, branch: str, run: int,
                        file: str) -> str:
-        pipelineName = os.path.splitext(pipeline)[0]
+        pipelineName = formatPipelineName(pipeline)
         archivePath = self._getArchivePath(branch, pipelineName, run)
         fullpath = sanitizeFilepath(archivePath, file)
 
@@ -546,7 +544,7 @@ class ControllerState:
         return fullpath
 
     def getOutputList(self, pipeline: str, branch: str, run: int) -> dict:
-        pipelineName = os.path.splitext(pipeline)[0]
+        pipelineName = formatPipelineName(pipeline)
         outputPath = self._getOutputPath(branch, pipelineName, run)
 
         x = ArchiveLister(pipeline, branch, run, outputPath, "output")
@@ -555,7 +553,7 @@ class ControllerState:
 
     def getOutputFile(self, pipeline: str, branch: str, run: int,
                       file: str) -> str:
-        pipelineName = os.path.splitext(pipeline)[0]
+        pipelineName = formatPipelineName(pipeline)
         outputPath = self._getOutputPath(branch, pipelineName, run)
         fullpath = sanitizeFilepath(outputPath, file)
 

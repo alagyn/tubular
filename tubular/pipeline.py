@@ -16,11 +16,18 @@ class PipelineReq(BaseModel):
     args: list[dict[str, str]]
 
 
+def formatPipelineName(pipelineFile: str) -> str:
+    # strip .yaml
+    out = os.path.splitext(pipelineFile)[0]
+    out = out.replace("/", ".")
+    return out
+
+
 class PipelineDef:
 
     def __init__(self, repoPath: str, file: str) -> None:
         self.file = file
-        self.name = os.path.splitext(self.file)[0]
+        self.name = formatPipelineName(file)
         config = loadYAML(os.path.join(repoPath, self.file))
 
         try:

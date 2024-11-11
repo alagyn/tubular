@@ -27,18 +27,12 @@ def compressOutputFile(outputFile: str) -> str:
 def decompressOutputFile(zippedOutput: str, outputDir: str):
     with zipfile.ZipFile(zippedOutput, mode='r',
                          compression=zipfile.ZIP_LZMA) as f:
-
-        print(f'{zippedOutput=}')
-        print(f'{outputDir=}')
         # strip .zip
         innerFile = os.path.splitext(zippedOutput)[0]
-        print(f'{innerFile=}')
         # remove parents
         parents, innerFile = os.path.split(innerFile)
-        print(f'{innerFile=}')
 
         realOutputDir = os.path.join(outputDir, parents)
-        print(f'{realOutputDir=}')
 
         f.extract(innerFile, realOutputDir)
 
