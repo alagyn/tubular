@@ -30,11 +30,6 @@ class TaskDef:
         self.name = os.path.splitext(taskPath)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
 
-        self.archiveZipFile = os.path.join(self.repoPath,
-                                           f'{self.name}.archive.zip')
-        self.outputZipFile = os.path.join(self.repoPath,
-                                          f'{self.name}.output.zip')
-
         try:
             self.display = config['meta']['display']
         except KeyError:
@@ -68,12 +63,18 @@ class TaskDef:
 
 class Task:
 
-    def __init__(self, repoUrl: str, branch: str, taskDef: TaskDef) -> None:
+    def __init__(self, repoUrl: str, branch: str, taskDef: TaskDef,
+                 archivePath: str, outputPath: str) -> None:
         self.repoUrl = repoUrl
         self.branch = branch
         self.meta = taskDef
         self.status = PipelineStatus.Running
         self._statusNotify = threading.Condition()
+
+        self.archiveZipFile = os.path.join(archivePath,
+                                           f'{self.meta.name}.archive.zip')
+        self.outputZipFile = os.path.join(outputPath,
+                                          f'{self.meta.name}.output.zip')
 
     def setStatus(self, status: PipelineStatus):
         with self._statusNotify:

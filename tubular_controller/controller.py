@@ -10,12 +10,12 @@ import requests
 
 from tubular.config_loader import load_configs
 from tubular import git_cmds
-from tubular.pipeline import Pipeline, PipelineReq, PipelineDef, formatArchiveDirName
+from tubular.pipeline import Pipeline, PipelineReq, PipelineDef
 from tubular.stage import Stage
 from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
 from tubular.pipeline_db import PipelineDB
-from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath
+from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath, ensureParents
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
@@ -37,6 +37,8 @@ class Node:
 
         self.currentTask: Task | None = None
 
+        self._downloading = False
+
     def sendTask(self, pipeline: Pipeline, task: Task):
         print("sending task to", self.name)
         self.currentTask = task
@@ -49,17 +51,20 @@ class Node:
         args = task.toTaskReq({}).model_dump()
 
         # Download archived files
+        ensureParents(task.archiveZipFile)
         with requests.get(url=f'{self._url}/archive', stream=True,
                           json=args) as r:
             r.raise_for_status()
-            with open(task.meta.archiveZipFile, mode='wb') as f:
+            with open(task.archiveZipFile, mode='wb') as f:
                 for chunk in r.iter_content():
                     f.write(chunk)
 
         # Download output
+        ensureParents(task.outputZipFile)
         with requests.get(url=f'{self._url}/output', stream=True,
                           json=args) as r:
-            with open(task.meta.outputZipFile, mode='wb') as f:
+            print("downloading output to", task.outputZipFile)
+            with open(task.outputZipFile, mode='wb') as f:
                 for chunk in r.iter_content():
                     f.write(chunk)
 
@@ -74,6 +79,8 @@ class Node:
             taskStatus = PipelineStatus[data["task_status"]]
 
             if self.currentTask is not None and taskStatus != PipelineStatus.Running:
+                # TODO prevent attempting to download more than once
+                self._downloading = True
                 threading.Thread(target=self._downloadArchive,
                                  args=(self.currentTask, taskStatus)).start()
 
@@ -107,8 +114,6 @@ class ArchiveLister:
         fullPath = os.path.join(parentPath, curPath)
 
         for x in os.scandir(fullPath):
-            if x.name == '_output':
-                continue
             child = {}
 
             if x.is_file():
@@ -210,8 +215,6 @@ class ControllerState:
         ctrlConfigs = config["controller"]
         self.workspace = os.path.realpath(ctrlConfigs["workspace"])
 
-        git_cmds.initWorkspace(self.workspace)
-
         dbFile = os.path.join(self.workspace, "tubular.db")
         self._db = PipelineDB(dbFile)
 
@@ -285,14 +288,27 @@ class ControllerState:
     def _runPipelineThread(self, pipelineReq: PipelineReq):
         path = self._getRepoPath(pipelineReq.branch)
         with self._branchLocks[path]:
-            repoDir = self._cloneOrPullRepo(pipelineReq.branch)
-            pipelineDef = PipelineDef(repoDir, pipelineReq.pipeline_path)
+            repoPath = self._cloneOrPullRepo(pipelineReq.branch)
+            pipelineDef = PipelineDef(repoPath, pipelineReq.pipeline_path)
 
             pipelineID, runNum = self._db.getPipelineIDAndNextRun(
                 pipelineDef.file)
 
-            pipeline = Pipeline(self.pipelineRepoUrl, pipelineDef, pipelineReq,
-                                repoDir, runNum)
+            archivePath = self._getArchivePath(pipelineReq.branch,
+                                               pipelineDef.name, runNum)
+            outputPath = self._getOutputPath(pipelineReq.branch,
+                                             pipelineDef.name, runNum)
+
+            os.makedirs(archivePath)
+            os.makedirs(outputPath)
+
+            pipeline = Pipeline(
+                self.pipelineRepoUrl,
+                pipelineDef,
+                pipelineReq,
+                archivePath,
+                outputPath,
+            )
 
             start = time.time()
 
@@ -300,18 +316,26 @@ class ControllerState:
                                       start, pipeline.meta.maxRuns)
 
             for x in oldRuns:
-                folder = formatArchiveDirName(repoDir, pipeline.meta.name, x)
-                if os.path.exists(folder):
+                oldArch = self._getArchivePath(pipelineReq.branch,
+                                               pipeline.meta.name, x)
+                oldOut = self._getOutputPath(pipelineReq.branch,
+                                             pipeline.meta.name, x)
+                if os.path.exists(oldArch):
                     print("Removing archive for", x)
-                    shutil.rmtree(folder)
+                    shutil.rmtree(oldArch)
+                    shutil.rmtree(oldOut)
 
             print(pipeline.stages)
 
-            for stage in pipeline.stages:
-                self.runStage(pipeline, stage)
-                if pipeline.status != PipelineStatus.Running:
-                    print("Pipeline error")
-                    break
+            try:
+                for stage in pipeline.stages:
+                    self.runStage(pipeline, stage)
+                    if pipeline.status != PipelineStatus.Running:
+                        print("Pipeline error")
+                        break
+            except Exception as err:
+                print("Error running pipeline")
+                pipeline.status = PipelineStatus.Fail
 
             if pipeline.status == PipelineStatus.Running:
                 pipeline.status = PipelineStatus.Success
@@ -349,8 +373,10 @@ class ControllerState:
             status = task.waitForComplete()
             self._tasksWaiting -= 1
 
-            decompressArchive(task.meta.archiveZipFile, pipeline.archive)
-            decompressOutputFile(task.meta.outputZipFile, pipeline.outputDir)
+            decompressArchive(task.archiveZipFile, pipeline.archive)
+            os.remove(task.archiveZipFile)
+            decompressOutputFile(task.outputZipFile, pipeline.outputDir)
+            os.remove(task.outputZipFile)
 
             if status != PipelineStatus.Success:
                 pipeline.status = status
@@ -368,8 +394,19 @@ class ControllerState:
         self.updateNodeStatus()
         return {x.name: x.status.name for x in self.nodes}
 
-    def _getRepoPath(self, branch: str) -> str:
+    def _getBranchPath(self, branch: str) -> str:
         return os.path.join(self.pipelineRepoPath, branch)
+
+    def _getRepoPath(self, branch: str) -> str:
+        return os.path.join(self._getBranchPath(branch), "repo")
+
+    def _getArchivePath(self, branch: str, name: str, runNum: int) -> str:
+        return os.path.join(self._getBranchPath(branch), "archive",
+                            f'{name}.archive.{runNum}')
+
+    def _getOutputPath(self, branch: str, name: str, runNum: int) -> str:
+        return os.path.join(self._getBranchPath(branch), "output",
+                            f'{name}.output.{runNum}')
 
     def _cloneOrPullRepo(self, branch: str) -> str:
         """
@@ -478,9 +515,10 @@ class ControllerState:
 
     def getArchiveList(self, pipeline: str, branch: str, run: int) -> dict:
 
-        repoPath = self._getRepoPath(branch)
-        pipelinePath = os.path.splitext(pipeline)[0]
-        archivePath = os.path.join(repoPath, f'{pipelinePath}.archive.{run}')
+        pipelineName = os.path.splitext(pipeline)[0]
+        archiveRoot = self._getArchivePath(branch, pipelineName, run)
+        archivePath = os.path.join(archiveRoot,
+                                   f'{pipelineName}.archive.{run}')
 
         x = ArchiveLister(pipeline, branch, run, archivePath)
 
@@ -488,10 +526,8 @@ class ControllerState:
 
     def getArchiveFile(self, pipeline: str, branch: str, run: int,
                        file: str) -> str:
-        repoPath = self._getRepoPath(branch)
-        pipelinePath = os.path.splitext(pipeline)[0]
-        archivePath = os.path.join(repoPath, f'{pipelinePath}.archive.{run}')
-
+        pipelineName = os.path.splitext(pipeline)[0]
+        archivePath = self._getArchivePath(branch, pipelineName, run)
         fullpath = sanitizeFilepath(archivePath, file)
 
         if not os.path.isfile(fullpath):

@@ -5,15 +5,6 @@ from typing import TextIO
 
 # TODO error checking
 
-WORKSPACE = ""
-
-
-def initWorkspace(root: str):
-    global WORKSPACE
-    WORKSPACE = os.path.join(root, "git-temp")
-    if not os.path.exists(WORKSPACE):
-        os.makedirs(WORKSPACE, exist_ok=True)
-
 
 def _runCmd(args, cwd=None, outputFile: TextIO | None = None):
     stdout = sp.DEVNULL if outputFile is None else outputFile

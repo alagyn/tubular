@@ -30,8 +30,11 @@ def decompressOutputFile(zippedOutput: str, outputDir: str):
         # strip .zip
         innerFile = os.path.splitext(zippedOutput)[0]
         # remove parents
-        innerFile = os.path.split(innerFile)[1]
-        f.extract(innerFile, outputDir)
+        innerFile = os.path.relpath(outputDir, innerFile)
+
+        realOutputDir = os.path.join(outputDir, os.path.split(innerFile)[0])
+
+        f.extract(innerFile, realOutputDir)
 
 
 def sanitizeFilepath(parent, path) -> str:
@@ -42,3 +45,9 @@ def sanitizeFilepath(parent, path) -> str:
             f"path: '{fullpath}' is not contained in '{parent}'")
 
     return fullpath
+
+
+def ensureParents(path: str):
+    parents = os.path.split(path)[0]
+    if not os.path.exists(parents):
+        os.makedirs(parents, exist_ok=True)

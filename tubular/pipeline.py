@@ -16,10 +16,6 @@ class PipelineReq(BaseModel):
     args: list[dict[str, str]]
 
 
-def formatArchiveDirName(repoPath: str, name: str, runNum: int):
-    return os.path.join(repoPath, f'{name}.archive.{runNum}')
-
-
 class PipelineDef:
 
     def __init__(self, repoPath: str, file: str) -> None:
@@ -50,13 +46,13 @@ class PipelineDef:
 class Pipeline:
 
     def __init__(self, repoUrl: str, pipelineDef: PipelineDef,
-                 req: PipelineReq, repoPath: str, runNum: int) -> None:
+                 req: PipelineReq, archivePath: str, outputPath: str) -> None:
         self.meta = pipelineDef
         self.status = PipelineStatus.Running
 
         self.branch = req.branch
-        self.archive = formatArchiveDirName(repoPath, self.meta.name, runNum)
-        self.outputDir = os.path.join(self.archive, "_output")
+        self.archive = archivePath
+        self.outputDir = outputPath
 
         if not os.path.exists(self.archive):
             os.makedirs(self.archive, exist_ok=True)
@@ -69,5 +65,6 @@ class Pipeline:
         # TODO catch errors? set status to Error
 
         self.stages: list[Stage] = [
-            Stage(repoUrl, self.branch, x) for x in self.meta.stages
+            Stage(repoUrl, self.branch, x, archivePath, outputPath)
+            for x in self.meta.stages
         ]

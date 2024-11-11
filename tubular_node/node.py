@@ -23,7 +23,6 @@ class NodeState:
     def start(self):
         config = load_configs()
         self.workspace = os.path.realpath(config["node"]["workspace-root"])
-        git_cmds.initWorkspace(self.workspace)
 
         if not os.path.exists(self.workspace):
             os.makedirs(self.workspace, exist_ok=True)
@@ -50,14 +49,14 @@ class NodeState:
         try:
             git_cmds.cloneOrPull(taskReq.repo_url, taskReq.branch, repoDir)
             taskDef = TaskDef(repoDir, taskReq.task_path)
-            task = Task(taskReq.repo_url, taskReq.branch, taskDef)
+            taskWorkspace = os.path.join(repoDir, f'{taskDef.name}.workspace')
+            taskArchive = os.path.join(repoDir, f'{taskDef.name}.archive')
+            taskOutput = os.path.join(repoDir, f'{taskDef.name}.output')
+            task = Task(taskReq.repo_url, taskReq.branch, taskDef, taskArchive,
+                        taskOutput)
         except:
             self.taskStatus = PipelineStatus.Error
             raise
-
-        taskWorkspace = os.path.join(repoDir, f'{task.meta.name}.workspace')
-        taskArchive = os.path.join(repoDir, f'{task.meta.name}.archive')
-        taskOutput = os.path.join(repoDir, f'{task.meta.name}.output')
 
         if not os.path.isdir(taskWorkspace):
             os.makedirs(taskWorkspace, exist_ok=True)
@@ -92,4 +91,4 @@ class NodeState:
         repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
         task = TaskDef(repoDir, taskReq.task_path)
 
-        return os.path.join(repoDir, f'{task.name}.output')
+        return os.path.join(repoDir, f'{task.name}.output.zip')
