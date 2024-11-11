@@ -95,6 +95,8 @@ WHERE
   rowid = (SELECT rowid FROM runs order by rowid limit :count)
   AND
   pipeline = :pipeline
+RETURNING
+  run
 """
 
 RUNS_GET_LAST_FOR_PIPELINE = """
@@ -202,7 +204,11 @@ class PipelineDB:
 
     @lock
     def addRun(self, pipelineID: int, runNum: int, branch: str, start: float,
-               maxRuns: int):
+               maxRuns: int) -> list[int]:
+        """
+        Adds a new run, and removes any rows over the max number.
+        Returns the runNum for removed rows.
+        """
         values = {
             "pipeline_id": pipelineID,
             "branch": branch,
@@ -210,9 +216,9 @@ class PipelineDB:
             "start_ts": int(start * 1000),
         }
 
-        print("Adding run", values)
-
         self._dbCur.execute(RUNS_ADD, values)
+
+        out: list[int] = []
 
         if maxRuns > 0:
             res = self._dbCur.execute(RUNS_GET_NUM_FOR_ID, (pipelineID, ))
@@ -222,9 +228,12 @@ class PipelineDB:
                     "count": count - maxRuns,
                     "pipeline": pipelineID,
                 }
-                self._dbCur.execute(RUNS_DROP_OLDEST, values)
+                res = self._dbCur.execute(RUNS_DROP_OLDEST, values)
+                for x in res.fetchall():
+                    out.append(x[0])
 
         self._dbCon.commit()
+        return out
 
     @lock
     def setRunStatus(self, pipelineID: int, runNum: int, duration: float,

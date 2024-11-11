@@ -1,5 +1,5 @@
 import enum
-from typing import Dict, Any
+from typing import Dict, Any, TextIO
 import subprocess as sp
 import os
 import sys
@@ -7,6 +7,7 @@ import shutil
 
 from tubular import git_cmds
 from tubular.task_env import TaskEnv
+from tubular.file_utils import sanitizeFilepath
 
 
 class StepType(enum.IntEnum):
@@ -51,7 +52,7 @@ class Step:
         except KeyError:
             self.display = getStr(config, "type")
 
-    def run(self, taskEnv: TaskEnv):
+    def run(self, taskEnv: TaskEnv, out: TextIO):
         raise NotImplementedError()
 
 
@@ -62,13 +63,15 @@ class _StepActionClone(Step):
         self.url = getStr(config, "url")
         self.branch = getStr(config, "branch")
 
-    def run(self, taskEnv: TaskEnv):
+    def run(self, taskEnv: TaskEnv, out: TextIO):
         url = taskEnv.replace(self.url)
         branch = taskEnv.replace(self.branch)
 
         path = os.path.join(taskEnv.workspace, git_cmds.getRepoName(url))
 
-        git_cmds.cloneOrPull(url, branch, path)
+        out.write(f"[ Clone ] {url} {branch}\n")
+        out.flush()
+        git_cmds.cloneOrPull(url, branch, path, out)
 
 
 class _StepActionScript(Step):
@@ -78,7 +81,7 @@ class _StepActionScript(Step):
         self.lang = getStr(config, "lang")
         self.script = getStr(config, "script")
 
-    def run(self, taskEnv: TaskEnv):
+    def run(self, taskEnv: TaskEnv, out: TextIO):
         args = []
         match self.lang.lower():
             case 'shell':
@@ -104,9 +107,16 @@ class _StepActionScript(Step):
 
         args.append(scriptName)
 
-        ret = sp.call(args=args, cwd=taskEnv.workspace)
+        out.write(f"[ Script ] {scriptFile}\n")
+        out.flush()
+        ret = sp.call(args=args,
+                      cwd=taskEnv.workspace,
+                      stdout=out,
+                      stderr=sp.STDOUT)
         if ret != 0:
             # TODO
+            out.write(f"[ Script ] Script failed with code {ret}\n")
+            out.flush()
             raise RuntimeError("Script failed")
 
 
@@ -116,9 +126,17 @@ class _StepActionExec(Step):
         super().__init__(config)
         self.target = getStr(config, "target")
 
-    def run(self, taskEnv: TaskEnv):
+    def run(self, taskEnv: TaskEnv, out: TextIO):
         target = taskEnv.replace(self.target)
-        sp.run(args=target.split(), cwd=taskEnv.workspace)
+        out.write(f"[ Exec ] {target}\n")
+        out.flush()
+        ret = sp.run(args=target.split(),
+                     cwd=taskEnv.workspace,
+                     stdout=out,
+                     stderr=sp.STDOUT)
+        if ret.returncode != 0:
+            # TODO
+            raise RuntimeError(f"Exec returned {ret.returncode}")
 
 
 class _StepActionArchive(Step):
@@ -127,18 +145,33 @@ class _StepActionArchive(Step):
         super().__init__(config)
         self.target = getStr(config, "target")
 
-    def run(self, taskEnv: TaskEnv):
+    def run(self, taskEnv: TaskEnv, out: TextIO):
+        out.write(f'[ Archive ]\n')
         target = taskEnv.replace(self.target)
-        if not os.path.exists(target):
-            raise RuntimeError("target does not exist")
+        fullpath = sanitizeFilepath(taskEnv.workspace, target)
+        if not os.path.exists(fullpath):
+            msg = f"Target '{fullpath}' does not exist"
+            out.write(msg)
+            out.write("\n")
+            raise RuntimeError(msg)
 
-        if os.path.isdir(target):
-            shutil.copytree(target,
-                            taskEnv.archive,
+        outpath = os.path.relpath(fullpath, taskEnv.workspace)
+        outpath = os.path.join(taskEnv.archive, outpath)
+
+        # TODO just make the target be a glob?
+        # could make this conditional not needed
+        # and we could log each file
+
+        if os.path.isdir(fullpath):
+            out.write(f"Archiving directory: {fullpath}\n")
+            shutil.copytree(fullpath,
+                            outpath,
                             symlinks=True,
                             dirs_exist_ok=True)
         else:
-            shutil.copy(target, taskEnv.archive)
+            out.write(f"Archiving file: {fullpath}\n")
+            shutil.copy(fullpath, outpath)
+        out.flush()
 
 
 def makeStep(config: Dict[str, Any]) -> Step:

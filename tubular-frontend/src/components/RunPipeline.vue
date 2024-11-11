@@ -60,7 +60,7 @@ onMounted(() =>
             <button @click="run_pipeline()" class="pure-button">Run</button>
             <form class="pure-form pure-form-stacked">
                 <fieldset>
-                    <label for="branch-select">Branch</label>
+                    <label for="branch-select">Pipeline Branch</label>
                     <select id="branch-select" class="pure-input-1-2" v-model="selectedBranch">
                         <option v-for="branch in branches">
                             {{ branch }}

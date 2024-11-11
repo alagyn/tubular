@@ -1,6 +1,7 @@
 from typing import Dict, Any
 import threading
 import os
+import uuid
 
 from pydantic import BaseModel
 
@@ -28,6 +29,11 @@ class TaskDef:
         self.file = taskPath
         self.name = os.path.splitext(taskPath)[0]
         config = loadYAML(os.path.join(repoPath, self.file))
+
+        self.archiveZipFile = os.path.join(self.repoPath,
+                                           f'{self.name}.archive.zip')
+        self.outputZipFile = os.path.join(self.repoPath,
+                                          f'{self.name}.output.zip')
 
         try:
             self.display = config['meta']['display']
@@ -68,8 +74,6 @@ class Task:
         self.meta = taskDef
         self.status = PipelineStatus.Running
         self._statusNotify = threading.Condition()
-        self.archiveFile = os.path.join(self.meta.repoPath,
-                                        f'{self.meta.name}.archive.zip')
 
     def setStatus(self, status: PipelineStatus):
         with self._statusNotify:
@@ -78,10 +82,15 @@ class Task:
                 self._statusNotify.notify_all()
 
     def run(self, taskEnv: TaskEnv):
-        for idx, step in enumerate(self.meta.steps):
-            print(f"Running step {step.display}")
-            taskEnv.taskStep = idx
-            step.run(taskEnv)
+        with open(taskEnv.output, mode='w') as f:
+            for idx, step in enumerate(self.meta.steps):
+                print(f"Running step {step.display}")
+                taskEnv.taskStep = idx
+                try:
+                    step.run(taskEnv, f)
+                except Exception as err:
+                    print("Step failed:", err)
+                    raise
 
     def waitForComplete(self) -> PipelineStatus:
         with self._statusNotify:

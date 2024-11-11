@@ -38,6 +38,12 @@ async def getArchive(task: TaskRequest) -> FileResponse:
     return FileResponse(archive)
 
 
+@app.get("/output")
+async def getOutput(task: TaskRequest) -> FileResponse:
+    output = NODE_STATE.getOutputFile(task)
+    return FileResponse(output)
+
+
 @app.post("/queue")
 async def addTask(task: TaskRequest):
     NODE_STATE.queueTask(task)

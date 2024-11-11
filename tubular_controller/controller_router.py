@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Response, status, routing
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import traceback
@@ -81,6 +81,12 @@ async def getBranches() -> list[str]:
 @apiRouter.get("/archive_list")
 async def getArchiveList(pipeline: str, branch: str, run: int) -> dict:
     return CTRL_STATE.getArchiveList(pipeline, branch, run)
+
+
+@apiRouter.get("/archive")
+async def getArchiveFile(pipeline: str, branch: str, run: int, file: str):
+    path = CTRL_STATE.getArchiveFile(pipeline, branch, run, file)
+    return FileResponse(path)
 
 
 # mount these last

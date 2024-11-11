@@ -7,7 +7,7 @@ from tubular import git_cmds
 from tubular.task import Task, TaskDef, TaskRequest
 from tubular.enums import NodeStatus, PipelineStatus
 from tubular.task_env import TaskEnv
-from tubular.file_utils import compressArchive
+from tubular.file_utils import compressArchive, compressOutputFile
 
 # TODO clean up old pipeline repos/branches?
 
@@ -22,7 +22,7 @@ class NodeState:
 
     def start(self):
         config = load_configs()
-        self.workspace = config["node"]["workspace-root"]
+        self.workspace = os.path.realpath(config["node"]["workspace-root"])
         git_cmds.initWorkspace(self.workspace)
 
         if not os.path.exists(self.workspace):
@@ -57,6 +57,7 @@ class NodeState:
 
         taskWorkspace = os.path.join(repoDir, f'{task.meta.name}.workspace')
         taskArchive = os.path.join(repoDir, f'{task.meta.name}.archive')
+        taskOutput = os.path.join(repoDir, f'{task.meta.name}.output')
 
         if not os.path.isdir(taskWorkspace):
             os.makedirs(taskWorkspace, exist_ok=True)
@@ -64,7 +65,7 @@ class NodeState:
         # Create archive dir
         os.makedirs(taskArchive, exist_ok=True)
 
-        taskEnv = TaskEnv(taskWorkspace, taskArchive, taskReq.args)
+        taskEnv = TaskEnv(taskWorkspace, taskArchive, taskOutput, taskReq.args)
 
         try:
             task.run(taskEnv)
@@ -74,9 +75,11 @@ class NodeState:
         print("Task complete")
 
         compressArchive(taskArchive, f'{taskArchive}.zip')
+        compressOutputFile(taskOutput)
 
         # Clear archive dir
         shutil.rmtree(taskArchive)
+        # Clear output file
 
         self.status = NodeStatus.Idle
 
@@ -84,3 +87,9 @@ class NodeState:
         repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
         task = TaskDef(repoDir, taskReq.task_path)
         return os.path.join(repoDir, f'{task.name}.archive.zip')
+
+    def getOutputFile(self, taskReq: TaskRequest):
+        repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
+        task = TaskDef(repoDir, taskReq.task_path)
+
+        return os.path.join(repoDir, f'{task.name}.output')

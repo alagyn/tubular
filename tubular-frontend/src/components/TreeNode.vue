@@ -7,7 +7,7 @@
                 <TreeNode v-for="child in node.children" :node="child"></TreeNode>
             </ul>
         </div>
-        <a v-else href="#/TODO">{{ node.label }}</a>
+        <a v-else :href="node.href">{{ node.label }}</a>
     </li>
 </template>
 

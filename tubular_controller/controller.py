@@ -1,5 +1,5 @@
 import os
-import uuid
+import shutil
 from typing import Dict, Any
 import threading
 import time
@@ -10,12 +10,12 @@ import requests
 
 from tubular.config_loader import load_configs
 from tubular import git_cmds
-from tubular.pipeline import Pipeline, PipelineReq, PipelineDef
+from tubular.pipeline import Pipeline, PipelineReq, PipelineDef, formatArchiveDirName
 from tubular.stage import Stage
 from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
 from tubular.pipeline_db import PipelineDB
-from tubular.file_utils import decompressArchive
+from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
@@ -46,13 +46,23 @@ class Node:
                       timeout=5)
 
     def _downloadArchive(self, task: Task, finalStatus: PipelineStatus):
-        with requests.get(url=f'{self._url}/archive',
-                          stream=True,
-                          json=task.toTaskReq({}).model_dump()) as r:
+        args = task.toTaskReq({}).model_dump()
+
+        # Download archived files
+        with requests.get(url=f'{self._url}/archive', stream=True,
+                          json=args) as r:
             r.raise_for_status()
-            with open(task.archiveFile, mode='wb') as f:
+            with open(task.meta.archiveZipFile, mode='wb') as f:
                 for chunk in r.iter_content():
                     f.write(chunk)
+
+        # Download output
+        with requests.get(url=f'{self._url}/output', stream=True,
+                          json=args) as r:
+            with open(task.meta.outputZipFile, mode='wb') as f:
+                for chunk in r.iter_content():
+                    f.write(chunk)
+
         # set status here so we wait till after the download
         task.setStatus(finalStatus)
 
@@ -72,6 +82,45 @@ class Node:
             self.status = NodeStatus.Offline
         except requests.ConnectionError:
             self.status = NodeStatus.Offline
+
+
+class ArchiveLister:
+
+    def __init__(self, pipeline: str, branch: str, run: int,
+                 archivePath: str) -> None:
+        self.pipeline = pipeline
+        self.branch = branch
+        self.run = run
+        self.archivePath = archivePath
+
+    def getArchiveList(self) -> dict:
+        out = {}
+        self._buildArchiveList("", self.archivePath, out)
+        return out
+
+    def _buildArchiveList(self, parentPath: str, curPath: str, out: dict):
+        out['label'] = curPath
+
+        children = []
+        out['children'] = children
+
+        fullPath = os.path.join(parentPath, curPath)
+
+        for x in os.scandir(fullPath):
+            if x.name == '_output':
+                continue
+            child = {}
+
+            if x.is_file():
+                child['label'] = x.name
+                relPath = os.path.relpath(os.path.join(fullPath, x.name),
+                                          self.archivePath)
+                child[
+                    'href'] = f'/api/archive?pipeline={self.pipeline}&branch={self.branch}&run={self.run}&file={relPath}'
+            else:
+                self._buildArchiveList(fullPath, x.name, child)
+
+            children.append(child)
 
 
 class QueueTask:
@@ -159,7 +208,7 @@ class ControllerState:
         config = load_configs()
 
         ctrlConfigs = config["controller"]
-        self.workspace = ctrlConfigs["workspace"]
+        self.workspace = os.path.realpath(ctrlConfigs["workspace"])
 
         git_cmds.initWorkspace(self.workspace)
 
@@ -227,6 +276,8 @@ class ControllerState:
                 time.sleep(1)
 
     def queuePipeline(self, pipelineReq: PipelineReq):
+        if len(pipelineReq.branch.strip()) == 0:
+            pipelineReq.branch = self.pipelineRepoDefBranch
         # TODO reject queue requests if pipeline repo has an update
         threading.Thread(target=self._runPipelineThread,
                          args=(pipelineReq, )).start()
@@ -245,8 +296,14 @@ class ControllerState:
 
             start = time.time()
 
-            self._db.addRun(pipelineID, runNum, pipelineReq.branch, start,
-                            pipeline.meta.maxRuns)
+            oldRuns = self._db.addRun(pipelineID, runNum, pipelineReq.branch,
+                                      start, pipeline.meta.maxRuns)
+
+            for x in oldRuns:
+                folder = formatArchiveDirName(repoDir, pipeline.meta.name, x)
+                if os.path.exists(folder):
+                    print("Removing archive for", x)
+                    shutil.rmtree(folder)
 
             print(pipeline.stages)
 
@@ -292,7 +349,8 @@ class ControllerState:
             status = task.waitForComplete()
             self._tasksWaiting -= 1
 
-            decompressArchive(task.archiveFile, pipeline.archive)
+            decompressArchive(task.meta.archiveZipFile, pipeline.archive)
+            decompressOutputFile(task.meta.outputZipFile, pipeline.outputDir)
 
             if status != PipelineStatus.Success:
                 pipeline.status = status
@@ -418,35 +476,28 @@ class ControllerState:
     def getBranches(self) -> list[str]:
         return git_cmds.getBranches(self.pipelineRepoUrl)
 
-    def _buildArchiveList(self, parentPath: str, curPath: str, out: dict):
-        out['label'] = curPath
-
-        children = []
-        out['children'] = children
-
-        fullPath = os.path.join(parentPath, curPath)
-
-        for x in os.scandir(fullPath):
-            child = {}
-
-            if x.is_file():
-                child['label'] = x.name
-            else:
-                self._buildArchiveList(fullPath, x.name, child)
-
-            children.append(child)
-
     def getArchiveList(self, pipeline: str, branch: str, run: int) -> dict:
 
         repoPath = self._getRepoPath(branch)
         pipelinePath = os.path.splitext(pipeline)[0]
         archivePath = os.path.join(repoPath, f'{pipelinePath}.archive.{run}')
 
-        out = {}
+        x = ArchiveLister(pipeline, branch, run, archivePath)
 
-        self._buildArchiveList("", archivePath, out)
+        return x.getArchiveList()
 
-        return out
+    def getArchiveFile(self, pipeline: str, branch: str, run: int,
+                       file: str) -> str:
+        repoPath = self._getRepoPath(branch)
+        pipelinePath = os.path.splitext(pipeline)[0]
+        archivePath = os.path.join(repoPath, f'{pipelinePath}.archive.{run}')
+
+        fullpath = sanitizeFilepath(archivePath, file)
+
+        if not os.path.isfile(fullpath):
+            raise RuntimeError(f"Path not found: '{file}'")
+
+        return fullpath
 
     def getRunsStats(self) -> dict[str, Any]:
         status = self._db.getLast50RunsStatus()

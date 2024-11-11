@@ -22,7 +22,7 @@ const graphOptions = {
         },
     },
     responsive: true,
-    backgroundColor: ["#0ecf16", "#0ec0cf", "#eb0037"],
+    backgroundColor: ["#0ecf16", "#2864d7", "#eb0037"],
     radius: "75%"
 }
 

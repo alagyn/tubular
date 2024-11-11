@@ -1,6 +1,7 @@
 import subprocess as sp
 import os
 import uuid
+from typing import TextIO
 
 # TODO error checking
 
@@ -14,17 +15,12 @@ def initWorkspace(root: str):
         os.makedirs(WORKSPACE, exist_ok=True)
 
 
-def _runCmd(args, cwd=None):
-    tempFile = os.path.join(WORKSPACE, f'{uuid.uuid4()}.log')
-    with open(tempFile, mode='w') as f:
-        ret = sp.run(args=args, cwd=cwd, stdout=f, stderr=sp.STDOUT)
+def _runCmd(args, cwd=None, outputFile: TextIO | None = None):
+    stdout = sp.DEVNULL if outputFile is None else outputFile
+    ret = sp.run(args=args, cwd=cwd, stdout=stdout, stderr=sp.STDOUT)
     if ret.returncode != 0:
-        with open(tempFile, mode='r') as f:
-            logs = f.read()
-        os.remove(tempFile)
         raise RuntimeError(
-            f'Error running git command, {cwd=}: {" ".join(args)}\n{logs}')
-    os.remove(tempFile)
+            f'Error running git command, {cwd=}: {" ".join(args)}')
 
 
 def _captureCmd(args, cwd=None) -> str:
@@ -36,23 +32,27 @@ def _captureCmd(args, cwd=None) -> str:
     return ret.stdout.decode()
 
 
-def clone(url: str, branch: str, path: str):
-    _runCmd(["git", "clone", url, f"--branch={branch}", "--depth=1", path])
+def clone(url: str, branch: str, path: str, outputFile: TextIO | None):
+    _runCmd(["git", "clone", url, f"--branch={branch}", "--depth=1", path],
+            outputFile=outputFile)
 
 
-def pull(path: str, branch: str):
-    _runCmd(["git", "fetch", "--depth=1"], path)
-    _runCmd(["git", "reset", "--hard", f"origin/{branch}"], path)
+def pull(path: str, branch: str, outputFile: TextIO | None):
+    _runCmd(["git", "fetch", "--depth=1"], path, outputFile)
+    _runCmd(["git", "reset", "--hard", f"origin/{branch}"], path, outputFile)
 
     # TODO make this optional?
     # _runCmd(["git", "clean", "-dfx"], path)
 
 
-def cloneOrPull(url: str, branch: str, path: str):
+def cloneOrPull(url: str,
+                branch: str,
+                path: str,
+                outputFile: TextIO | None = None):
     if not os.path.exists(path):
-        clone(url, branch, path)
+        clone(url, branch, path, outputFile)
     else:
-        pull(path, branch)
+        pull(path, branch, outputFile)
 
 
 def getRepoName(url: str) -> str:

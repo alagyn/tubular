@@ -16,6 +16,10 @@ class PipelineReq(BaseModel):
     args: list[dict[str, str]]
 
 
+def formatArchiveDirName(repoPath: str, name: str, runNum: int):
+    return os.path.join(repoPath, f'{name}.archive.{runNum}')
+
+
 class PipelineDef:
 
     def __init__(self, repoPath: str, file: str) -> None:
@@ -51,8 +55,8 @@ class Pipeline:
         self.status = PipelineStatus.Running
 
         self.branch = req.branch
-        self.archive = os.path.join(repoPath,
-                                    f'{self.meta.name}.archive.{runNum}')
+        self.archive = formatArchiveDirName(repoPath, self.meta.name, runNum)
+        self.outputDir = os.path.join(self.archive, "_output")
 
         if not os.path.exists(self.archive):
             os.makedirs(self.archive, exist_ok=True)
