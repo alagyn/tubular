@@ -56,15 +56,16 @@ CREATE TABLE IF NOT EXISTS runs
     start_ts INTEGER,
     duration_ms INTEGER,
     status INTEGER,
+    stages TEXT,
     FOREIGN KEY(pipeline) REFERENCES pipelines(id)
 )
 """
 
 RUNS_ADD = """
 INSERT INTO runs
-    (pipeline, branch, run, start_ts, duration_ms, status)
+    (pipeline, branch, run, start_ts, duration_ms, status, stages)
 VALUES
-    (:pipeline_id, :branch, :run, :start_ts, 0, 2)
+    (:pipeline_id, :branch, :run, :start_ts, 0, 2, "")
 """
 
 RUNS_SET_DATA = """
@@ -72,7 +73,8 @@ UPDATE
     runs
 SET
     duration_ms = :duration_ms,
-    status = :status
+    status = :status,
+    stages = :stages
 WHERE
     pipeline = :pipeline_id
     AND
@@ -139,6 +141,18 @@ SET
     status = 0
 WHERE
     status = 2
+"""
+
+RUNS_GET_STAGES = """
+SELECT
+    stages
+FROM
+    runs
+WHERE
+    run = :run
+    AND
+    pipeline = :pipeline
+LIMIT 1
 """
 
 # yapf: enable
@@ -237,12 +251,13 @@ class PipelineDB:
 
     @lock
     def setRunStatus(self, pipelineID: int, runNum: int, duration: float,
-                     status: PipelineStatus):
+                     status: PipelineStatus, stageStatus: str):
         values = {
             "pipeline_id": pipelineID,
             "run": runNum,
             "duration_ms": int(duration * 1000),
-            "status": status.value
+            "status": status.value,
+            "stages": stageStatus
         }
 
         self._dbCur.execute(RUNS_SET_DATA, values)
@@ -298,3 +313,9 @@ class PipelineDB:
         res = self._dbCur.execute(RUNS_GET_LAST_50_STATUS)
         out = [PipelineStatus(x[0]) for x in res.fetchall()]
         return out
+
+    @lock
+    def getRunStages(self, pipelineId: int, run: int) -> str:
+        data = {"pipeline": pipelineId, "run": run}
+        res = self._dbCur.execute(RUNS_GET_STAGES, data)
+        return res.fetchone()[0]

@@ -13,6 +13,7 @@ class PipelineStatus(enum.IntEnum):
     Success = 3
     # Queued
     Queued = 4
+    NotRun = 5
 
 
 class NodeStatus(enum.IntEnum):

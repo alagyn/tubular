@@ -68,7 +68,7 @@ class Task:
         self.repoUrl = repoUrl
         self.branch = branch
         self.meta = taskDef
-        self.status = PipelineStatus.Running
+        self.status = PipelineStatus.NotRun
         self._statusNotify = threading.Condition()
 
         self.archiveZipFile = os.path.join(archivePath,
@@ -83,7 +83,9 @@ class Task:
                 self._statusNotify.notify_all()
 
     def run(self, taskEnv: TaskEnv):
+        self.status = PipelineStatus.Running
         with open(taskEnv.output, mode='w') as f:
+            f.write(f"[ Run Task {self.meta.name} ]\n")
             for idx, step in enumerate(self.meta.steps):
                 print(f"Running step {step.display}")
                 taskEnv.taskStep = idx
@@ -91,11 +93,14 @@ class Task:
                     step.run(taskEnv, f)
                 except Exception as err:
                     print("Step failed:", err)
+                    f.write(f'[ Task Failed ] {err}')
                     raise
+
+            f.write(f'[ Task Complete ]')
 
     def waitForComplete(self) -> PipelineStatus:
         with self._statusNotify:
-            while self.status == PipelineStatus.Running:
+            while self.status == PipelineStatus.Running or self.status == PipelineStatus.NotRun:
                 self._statusNotify.wait()
             return self.status
 

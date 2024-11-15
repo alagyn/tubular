@@ -7,12 +7,13 @@ import PipelineHistory from './components/PipelineHistory.vue';
 import Nodes from './components/Nodes.vue';
 import NotFound from './components/NotFound.vue';
 import RunPipeline from './components/RunPipeline.vue';
+import Archive from './components/Archive.vue';
+import Output from './components/Output.vue';
+import ViewRun from './components/ViewRun.vue';
 
 import { Chart as ChartJS } from 'chart.js';
 
 import parsePath from './path_utils.js';
-import Archive from './components/Archive.vue';
-import Output from './components/Output.vue';
 
 // Setup default colors
 ChartJS.defaults.color = "#FFF"
@@ -26,6 +27,7 @@ const menuItems = shallowRef([
 var routes = {
   "/view_pipeline": PipelineHistory,
   "/run_pipeline": RunPipeline,
+  "/view_run": ViewRun,
   "/archive": Archive,
   "/output": Output
 }

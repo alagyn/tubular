@@ -100,6 +100,11 @@ async def getOutputFile(pipeline: str, branch: str, run: int, file: str):
     return FileResponse(path)
 
 
+@apiRouter.get("/run")
+async def getRunStatuses(pipeline: str, run: int):
+    return CTRL_STATE.getRunStages(pipeline, run)
+
+
 # mount these last
 app.include_router(apiRouter)
 app.mount("/", StaticFiles(directory="tubular-frontend/dist", html=True))

@@ -7,6 +7,8 @@ import parsePath from '../path_utils.js';
 let args = {}
 parsePath(window.location.hash, args)
 
+const runPath = `#/view_run?pipeline=${args.pipeline}`
+
 const runs = ref([])
 
 const STATUS_TO_STYLE = {
@@ -63,21 +65,16 @@ onUnmounted(() =>
                         <th>Timestamp</th>
                         <th>Duration</th>
                         <th>Status</th>
-                        <th></th>
-                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="run in runs">
-                        <td>{{ run.run }}</td>
+                        <td><a class="pure-button" :href="runPath + `&branch=${run.branch}&run=${run.run}`">{{ run.run
+                                }}</a></td>
                         <td>{{ run.branch }}</td>
                         <td>{{ run.timestamp }}</td>
                         <td>{{ run.duration }}</td>
                         <td :class="STATUS_TO_STYLE[run.status]">{{ run.status }}</td>
-                        <td><a :href="'#/archive?pipeline=' + args.pipeline + '&branch=' + run.branch + '&run=' + run.run"
-                                class="pure-button">Archive</a></td>
-                        <td><a :href="'#/output?pipeline=' + args.pipeline + '&branch=' + run.branch + '&run=' + run.run"
-                                class="pure-button">Output</a></td>
                     </tr>
                 </tbody>
 

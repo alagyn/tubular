@@ -1,11 +1,12 @@
 import os
 import shutil
-from typing import Dict, Any
+from typing import Any
 import threading
 import time
 import glob
 from collections import defaultdict
 import traceback
+import json
 
 import requests
 
@@ -41,7 +42,7 @@ class Node:
         self._downloadThread: threading.Thread | None = None
 
     def sendTask(self, pipeline: Pipeline, task: Task):
-        print("sending task to", self.name)
+        print("sending task to", self.name, task.meta.name)
         self.currentTask = task
         args = task.toTaskReq(pipeline.args)
         requests.post(url=f'{self._url}/queue',
@@ -86,7 +87,7 @@ class Node:
 
             taskStatus = PipelineStatus[data["task_status"]]
 
-            if self.currentTask is not None and taskStatus != PipelineStatus.Running:
+            if self.currentTask is not None and taskStatus != PipelineStatus.Running and taskStatus != PipelineStatus.NotRun:
                 self._downloadThread = threading.Thread(
                     target=self._downloadArchive,
                     args=(self.currentTask, taskStatus))
@@ -339,9 +340,19 @@ class ControllerState:
 
             print(pipeline.stages)
 
+            stageStatuses = [{
+                "display":
+                stage.meta.display,
+                "stages": [{
+                    "display": task.meta.display,
+                    "status": task.status
+                } for task in stage.tasks]
+            } for stage in pipeline.stages]
+
             try:
-                for stage in pipeline.stages:
-                    self.runStage(pipeline, stage)
+                for sIdx, stage in enumerate(pipeline.stages):
+                    statuses = stageStatuses[sIdx]['stages']
+                    self.runStage(pipeline, stage, statuses)
                     if pipeline.status != PipelineStatus.Running:
                         print("Pipeline error")
                         break
@@ -356,11 +367,11 @@ class ControllerState:
             end = time.time()
 
             self._db.setRunStatus(pipelineID, runNum, end - start,
-                                  pipeline.status)
+                                  pipeline.status, json.dumps(stageStatuses))
 
             print(f"Pipeline complete: {pipeline.meta.display}")
 
-    def runStage(self, pipeline: Pipeline, stage: Stage):
+    def runStage(self, pipeline: Pipeline, stage: Stage, statuses: list[dict]):
         for task in stage.tasks:
             availableNodes: list[Node] = []
             for x in self.nodes:
@@ -382,7 +393,7 @@ class ControllerState:
                 self.taskQueueCV.notify()
 
         # wait for every task to complete
-        for task in stage.tasks:
+        for tIdx, task in enumerate(stage.tasks):
             status = task.waitForComplete()
             self._tasksWaiting -= 1
 
@@ -393,6 +404,8 @@ class ControllerState:
 
             if status != PipelineStatus.Success:
                 pipeline.status = status
+
+            statuses[tIdx]["status"] = status
 
         print(f"Stage complete: {stage.meta.display}")
 
@@ -593,3 +606,9 @@ class ControllerState:
                 "success": success
             }
         }
+
+    def getRunStages(self, pipeline: str, run: int) -> list:
+        pId = self._db.getPipelineId(pipeline)
+        stageStr = self._db.getRunStages(pId, run)
+        print(stageStr)
+        return json.loads(stageStr)
