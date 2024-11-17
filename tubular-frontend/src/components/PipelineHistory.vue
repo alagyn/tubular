@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios';
 
 import parsePath from '../path_utils.js';
+import { STATUS_TO_NAME, STATUS_TO_STYLE } from '@/enums.js';
 
 let args = {}
 parsePath(window.location.hash, args)
@@ -10,15 +11,6 @@ parsePath(window.location.hash, args)
 const runPath = `#/view_run?pipeline=${args.pipeline}`
 
 const runs = ref([])
-
-const STATUS_TO_STYLE = {
-    "Error": "run-error",
-    "Fail": "run-fail",
-    "Running": "run-running",
-    "Queued": "run-queued",
-    "Success": "run-success",
-    "Not Run": ""
-}
 
 function getRuns()
 {
@@ -74,7 +66,7 @@ onUnmounted(() =>
                         <td>{{ run.branch }}</td>
                         <td>{{ run.timestamp }}</td>
                         <td>{{ run.duration }}</td>
-                        <td :class="STATUS_TO_STYLE[run.status]">{{ run.status }}</td>
+                        <td :class="STATUS_TO_STYLE[run.status]">{{ STATUS_TO_NAME[run.status] }}</td>
                     </tr>
                 </tbody>
 
@@ -83,24 +75,4 @@ onUnmounted(() =>
     </div>
 </template>
 
-<style>
-.run-error {
-    color: #eb0037;
-}
-
-.run-fail {
-    color: #eb9700;
-}
-
-.run-running {
-    color: #2864d7;
-}
-
-.run-queued {
-    color: #0ec0cf;
-}
-
-.run-success {
-    color: #25da30;
-}
-</style>
+<style></style>

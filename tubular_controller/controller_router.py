@@ -102,7 +102,8 @@ async def getOutputFile(pipeline: str, branch: str, run: int, file: str):
 
 @apiRouter.get("/run")
 async def getRunStatuses(pipeline: str, run: int):
-    return CTRL_STATE.getRunStages(pipeline, run)
+    return Response(content=CTRL_STATE.getRunMeta(pipeline, run),
+                    media_type="application/json")
 
 
 # mount these last

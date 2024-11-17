@@ -49,6 +49,14 @@ This is the parent `<div>` that contains the menu and the content area.
   left: 150px;
 }
 
+a {
+  color: var(--main-highlight);
+}
+
+pure-button a {
+  color: black;
+}
+
 /*
 The content `<div>` is where all your content goes.
 */

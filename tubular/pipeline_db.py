@@ -56,16 +56,16 @@ CREATE TABLE IF NOT EXISTS runs
     start_ts INTEGER,
     duration_ms INTEGER,
     status INTEGER,
-    stages TEXT,
+    meta TEXT,
     FOREIGN KEY(pipeline) REFERENCES pipelines(id)
 )
 """
 
 RUNS_ADD = """
 INSERT INTO runs
-    (pipeline, branch, run, start_ts, duration_ms, status, stages)
+    (pipeline, branch, run, start_ts, duration_ms, status, meta)
 VALUES
-    (:pipeline_id, :branch, :run, :start_ts, 0, 2, "")
+    (:pipeline_id, :branch, :run, :start_ts, 0, 2, "{}")
 """
 
 RUNS_SET_DATA = """
@@ -74,7 +74,7 @@ UPDATE
 SET
     duration_ms = :duration_ms,
     status = :status,
-    stages = :stages
+    meta = :meta
 WHERE
     pipeline = :pipeline_id
     AND
@@ -143,9 +143,9 @@ WHERE
     status = 2
 """
 
-RUNS_GET_STAGES = """
+RUNS_GET_META = """
 SELECT
-    stages
+    meta
 FROM
     runs
 WHERE
@@ -251,13 +251,13 @@ class PipelineDB:
 
     @lock
     def setRunStatus(self, pipelineID: int, runNum: int, duration: float,
-                     status: PipelineStatus, stageStatus: str):
+                     status: PipelineStatus, meta: str):
         values = {
             "pipeline_id": pipelineID,
             "run": runNum,
             "duration_ms": int(duration * 1000),
             "status": status.value,
-            "stages": stageStatus
+            "meta": meta
         }
 
         self._dbCur.execute(RUNS_SET_DATA, values)
@@ -315,7 +315,7 @@ class PipelineDB:
         return out
 
     @lock
-    def getRunStages(self, pipelineId: int, run: int) -> str:
+    def getRunMeta(self, pipelineId: int, run: int) -> str:
         data = {"pipeline": pipelineId, "run": run}
-        res = self._dbCur.execute(RUNS_GET_STAGES, data)
+        res = self._dbCur.execute(RUNS_GET_META, data)
         return res.fetchone()[0]

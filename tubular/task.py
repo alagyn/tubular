@@ -73,8 +73,9 @@ class Task:
 
         self.archiveZipFile = os.path.join(archivePath,
                                            f'{self.meta.name}.archive.zip')
-        self.outputZipFile = os.path.join(outputPath,
-                                          f'{self.meta.name}.output.zip')
+
+        self.outputFile = os.path.join(outputPath, f'{self.meta.name}.output')
+        self.outputZipFile = f'{self.outputFile}.zip'
 
     def setStatus(self, status: PipelineStatus):
         with self._statusNotify:

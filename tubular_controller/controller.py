@@ -344,8 +344,12 @@ class ControllerState:
                 "display":
                 stage.meta.display,
                 "stages": [{
-                    "display": task.meta.display,
-                    "status": task.status
+                    "display":
+                    task.meta.display,
+                    "output":
+                    os.path.relpath(task.outputFile, outputPath),
+                    "status":
+                    task.status
                 } for task in stage.tasks]
             } for stage in pipeline.stages]
 
@@ -366,8 +370,14 @@ class ControllerState:
 
             end = time.time()
 
+            numArchived = 0
+            for _ in glob.iglob("**/*", root_dir=archivePath, recursive=True):
+                numArchived += 1
+
+            metadata = {"stages": stageStatuses, "numArchived": numArchived}
+
             self._db.setRunStatus(pipelineID, runNum, end - start,
-                                  pipeline.status, json.dumps(stageStatuses))
+                                  pipeline.status, json.dumps(metadata))
 
             print(f"Pipeline complete: {pipeline.meta.display}")
 
@@ -527,7 +537,7 @@ class ControllerState:
                 "branch": run.branch,
                 "timestamp": time.strftime("%x %X", timestamp),
                 "duration": round(duration, 3),
-                "status": run.status.name
+                "status": run.status
             }
 
             out.append(data)
@@ -607,8 +617,7 @@ class ControllerState:
             }
         }
 
-    def getRunStages(self, pipeline: str, run: int) -> list:
+    def getRunMeta(self, pipeline: str, run: int) -> str:
         pId = self._db.getPipelineId(pipeline)
-        stageStr = self._db.getRunStages(pId, run)
-        print(stageStr)
-        return json.loads(stageStr)
+        metaStr = self._db.getRunMeta(pId, run)
+        return metaStr
