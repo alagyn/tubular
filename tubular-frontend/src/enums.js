@@ -5,7 +5,7 @@ export const STATUS_TO_NAME = [
     "Running",
     "Success",
     "Queued",
-    "NotRun"
+    "Not Run"
 ]
 
 export const STATUS_TO_STYLE = [

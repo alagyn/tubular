@@ -2,9 +2,9 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios';
 import { Doughnut } from 'vue-chartjs';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
+import { Chart as ChartJS, ArcElement, Tooltip, Title } from 'chart.js'
 
-ChartJS.register(ArcElement, Tooltip, Legend, Title)
+ChartJS.register(ArcElement, Tooltip, Title)
 
 const labels = ["Idle", "Active", "Offline"]
 

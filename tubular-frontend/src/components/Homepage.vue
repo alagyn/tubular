@@ -8,8 +8,6 @@ import Pipelines from './Pipelines.vue';
 </script>
 
 <template>
-    <div>Homepage</div>
-
     <div class="pure-g">
         <div class="pure-u-1-2">
             <NodeDoughnut />

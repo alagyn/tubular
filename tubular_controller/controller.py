@@ -419,12 +419,15 @@ class ControllerState:
 
         print(f"Stage complete: {stage.meta.display}")
 
+    def _updateNodeStatusThread(self):
+        for node in self.nodes:
+            node.updateStatus()
+
     def updateNodeStatus(self):
         curTime = time.time()
         if curTime - self._lastNodeCheck > NODE_UPDATE_PERIOD:
             self._lastNodeCheck = curTime
-            for node in self.nodes:
-                node.updateStatus()
+            threading.Thread(target=self._updateNodeStatusThread).start()
 
     def getNodeStatus(self) -> dict[str, str]:
         self.updateNodeStatus()
@@ -496,14 +499,14 @@ class ControllerState:
             print("checking last run", x)
             pId = self._db.getPipelineId(x.file)
             run = self._db.getLastRun(pId)
-            data = {"name": x.display, "path": x.file}
+            data: dict = {"name": x.display, "path": x.file}
             if run is None:
                 data["timestamp"] = "Not Run"
-                data["status"] = "Not Run"
+                data["status"] = PipelineStatus.NotRun
             else:
                 timestamp = time.localtime(run.startTime)
                 data["timestamp"] = time.strftime("%x %X", timestamp)
-                data["status"] = run.status.name
+                data["status"] = run.status
             out.append(data)
 
         return out

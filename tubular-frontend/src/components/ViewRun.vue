@@ -45,7 +45,7 @@ onMounted(() =>
             <div class="indent pure-g" v-for="task in stage.stages">
                 <div class="pure-u-1-2 pure-g task-box ">
                     <div class="pure-u-1-2">
-                        <a class="pure-button output-button"
+                        <a class="pure-button tubular-button"
                             :href="`/api/output?pipeline=${args.pipeline}&branch=${args.branch}&run=${args.run}&file=${task.output}`">{{
                                 task.display }}</a>
                     </div>
@@ -67,15 +67,6 @@ onMounted(() =>
     border-style: solid;
     border-radius: 5px;
     margin: 5px 0px 0px 40px;
-}
-
-.output-button {
-    background: var(--main-highlight);
-    color: white;
-    padding: 2px 4px;
-    margin: 4px;
-    box-sizing: border-box;
-    width: 100%;
 }
 
 .status {

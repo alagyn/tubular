@@ -43,7 +43,6 @@ class TaskDef:
         try:
             nodeConfigs = config['node']
             try:
-                # TODO error check
                 self.whiteTags = set(nodeConfigs['requires'])
             except KeyError:
                 pass
@@ -94,6 +93,7 @@ class Task:
                 taskEnv.taskStep = idx
                 try:
                     step.run(taskEnv, f)
+                    f.write("\n")
                 except Exception as err:
                     print("Step failed:", err)
                     f.write(f'[ Task Failed ] ({taskEnv.getTime()})\n{err}')

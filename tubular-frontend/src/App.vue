@@ -17,6 +17,7 @@ import parsePath from './path_utils.js';
 
 // Setup default colors
 ChartJS.defaults.color = "#FFF"
+ChartJS.defaults.plugins.title = { font: { size: 18 } }
 
 const menuItems = shallowRef([
   { route: "#/", title: "Home", page: Homepage },
@@ -65,16 +66,9 @@ const currentView = computed(() =>
 
   <main>
     <div id="layout">
-      <!-- Menu toggle -->
-      <a href="#menu" id="menuLink" class="menu-link">
-        <!-- Hamburger icon -->
-        <span></span>
-      </a>
-
       <div id="menu">
         <div class="pure-menu">
           <a class="pure-menu-heading" href="#/">Tubular</a>
-
           <ul class="pure-menu-list">
             <li v-for="page in menuItems" class="pure-menu-item">
               <a :href="page.route" class="pure-menu-link">{{ page.title }}</a>
@@ -91,5 +85,3 @@ const currentView = computed(() =>
     </div>
   </main>
 </template>
-
-<style scoped></style>

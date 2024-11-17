@@ -61,7 +61,8 @@ onUnmounted(() =>
                 </thead>
                 <tbody>
                     <tr v-for="run in runs">
-                        <td><a class="pure-button" :href="runPath + `&branch=${run.branch}&run=${run.run}`">{{ run.run
+                        <td><a class="pure-button tubular-button"
+                                :href="runPath + `&branch=${run.branch}&run=${run.run}`">{{ run.run
                                 }}</a></td>
                         <td>{{ run.branch }}</td>
                         <td>{{ run.timestamp }}</td>
