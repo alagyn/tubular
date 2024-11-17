@@ -69,7 +69,7 @@ class _StepActionClone(Step):
 
         path = os.path.join(taskEnv.workspace, git_cmds.getRepoName(url))
 
-        out.write(f"[ Clone ] {url} {branch}\n")
+        out.write(f"[ Clone {url} {branch}] ({taskEnv.getTime()})\n")
         out.flush()
         git_cmds.cloneOrPull(url, branch, path, out)
 
@@ -107,7 +107,7 @@ class _StepActionScript(Step):
 
         args.append(scriptName)
 
-        out.write(f"[ Script ] {scriptFile}\n")
+        out.write(f"[ Script {scriptFile} ] ({taskEnv.getTime()})\n")
         out.flush()
         ret = sp.call(args=args,
                       cwd=taskEnv.workspace,
@@ -115,7 +115,7 @@ class _StepActionScript(Step):
                       stderr=sp.STDOUT)
         if ret != 0:
             # TODO
-            out.write(f"[ Script ] Script failed with code {ret}\n")
+            out.write(f"[ Script Failed, Code={ret}] ({taskEnv.getTime()})\n")
             out.flush()
             raise RuntimeError("Script failed")
 
@@ -128,7 +128,7 @@ class _StepActionExec(Step):
 
     def run(self, taskEnv: TaskEnv, out: TextIO):
         target = taskEnv.replace(self.target)
-        out.write(f"[ Exec ] {target}\n")
+        out.write(f"[ Exec {target}] ({taskEnv.getTime()})\n")
         out.flush()
         ret = sp.run(args=target.split(),
                      cwd=taskEnv.workspace,
@@ -146,7 +146,7 @@ class _StepActionArchive(Step):
         self.target = getStr(config, "target")
 
     def run(self, taskEnv: TaskEnv, out: TextIO):
-        out.write(f'[ Archive ]\n')
+        out.write(f'[ Archive {self.target} ] ({taskEnv.getTime()})\n')
         target = taskEnv.replace(self.target)
         fullpath = sanitizeFilepath(taskEnv.workspace, target)
         if not os.path.exists(fullpath):

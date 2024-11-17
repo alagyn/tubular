@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import NodeDoughnut from './graphs/NodeDoughnut.vue';
 import PrevRunsDoughnut from './graphs/PrevRunsDoughnut.vue';
+import Pipelines from './Pipelines.vue';
 
 
 </script>
@@ -16,6 +17,9 @@ import PrevRunsDoughnut from './graphs/PrevRunsDoughnut.vue';
         <div class="pure-u-1-2">
             <PrevRunsDoughnut />
         </div>
+    </div>
+    <div>
+        <Pipelines />
     </div>
 
 </template>

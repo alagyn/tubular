@@ -39,7 +39,6 @@ function getNodeStatus()
             for (let key in response.data)
             {
                 let status = response.data[key]
-                console.log(key + " " + status)
                 if (status == "Idle")
                 {
                     ++idle

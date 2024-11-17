@@ -1,6 +1,7 @@
 import threading
 import os
 import shutil
+import time
 
 from tubular.config_loader import load_configs
 from tubular import git_cmds
@@ -65,6 +66,7 @@ class NodeState:
         os.makedirs(taskArchive, exist_ok=True)
 
         taskEnv = TaskEnv(taskWorkspace, taskArchive, taskOutput, taskReq.args)
+        taskEnv.start()
 
         try:
             task.run(taskEnv)

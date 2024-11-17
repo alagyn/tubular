@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import threading
 import os
-import uuid
+import datetime
 
 from pydantic import BaseModel
 
@@ -86,7 +86,9 @@ class Task:
     def run(self, taskEnv: TaskEnv):
         self.status = PipelineStatus.Running
         with open(taskEnv.output, mode='w') as f:
-            f.write(f"[ Run Task {self.meta.name} ]\n")
+            f.write(
+                f"[ Run Task {self.meta.name} ] ({datetime.datetime.now().isoformat()})\n"
+            )
             for idx, step in enumerate(self.meta.steps):
                 print(f"Running step {step.display}")
                 taskEnv.taskStep = idx
@@ -94,10 +96,12 @@ class Task:
                     step.run(taskEnv, f)
                 except Exception as err:
                     print("Step failed:", err)
-                    f.write(f'[ Task Failed ] {err}')
+                    f.write(f'[ Task Failed ] ({taskEnv.getTime()})\n{err}')
                     raise
 
-            f.write(f'[ Task Complete ]')
+            f.write(
+                f'[ Task Complete ] ({taskEnv.getTime()}) ({datetime.datetime.now().isoformat()})'
+            )
 
     def waitForComplete(self) -> PipelineStatus:
         with self._statusNotify:
