@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS runs
 (
     pipeline INTEGER,
     branch TEXT,
-    commit BLOB,
+    commit_hash BLOB,
     run INTEGER,
     start_ts INTEGER,
     duration_ms INTEGER,
@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS runs
 
 RUNS_ADD = """
 INSERT INTO runs
-    (pipeline, branch, commit, run, start_ts, duration_ms, status, meta)
+    (pipeline, branch, commit_hash, run, start_ts, duration_ms, status, meta)
 VALUES
-    (:pipeline_id, :branch, :commit, :run, :start_ts, 0, 2, "{}")
+    (:pipeline_id, :branch, :commit_hash, :run, :start_ts, 0, 2, "{}")
 """
 
 RUNS_SET_DATA = """
@@ -226,6 +226,7 @@ class PipelineDB:
         """
         values = {
             "pipeline_id": pipelineID,
+            "commit_hash": commit,
             "branch": branch,
             "run": runNum,
             "start_ts": int(start * 1000),

@@ -264,8 +264,9 @@ class ControllerState:
             end = time.time()
 
             numArchived = 0
-            for _ in glob.iglob("**/*", root_dir=archivePath, recursive=True):
-                numArchived += 1
+            for x in glob.iglob("**/*", root_dir=archivePath, recursive=True):
+                if not os.path.isdir(os.path.join(archivePath, x)):
+                    numArchived += 1
 
             metadata = {"stages": stageStatuses, "numArchived": numArchived}
 

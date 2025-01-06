@@ -12,7 +12,7 @@ const meta = ref([])
 
 function getStages()
 {
-    axios.get("/api/run?pipeline=" + args.pipeline + "&run=" + args.run).then(
+    axios.get(`/api/run?pipeline=${args.pipeline}&run=${args.run}`).then(
         (res) =>
         {
             meta.value = res.data
