@@ -3,13 +3,16 @@ import os
 import shutil
 import time
 
-from tubular.configLoader import load_configs
+from tubular.configLoader import loadMainConfig
+from tubular.yaml import loadYAML
 from tubular import git_cmds
 from tubular.task import Task, TaskDef, TaskRequest
 from tubular.enums import NodeStatus, PipelineStatus
 from tubular.taskEnv import TaskEnv
 from tubular.file_utils import compressArchive, compressOutputFile
 from tubular.repo import Repo
+from tubular.tempManager import TempManager
+from tubular.constantManager import ConstManager
 
 # TODO clean up old pipeline repos/branches?
 
@@ -22,12 +25,39 @@ class NodeState:
         self.workerThread = threading.Thread()
         self.taskStatus = PipelineStatus.Success
 
+        self.configRepo = Repo("", "", "")
+        self.configCommit = bytearray()
+
     def start(self):
-        config = load_configs()
+        config = loadMainConfig()
         self.workspace = os.path.realpath(config["node"]["workspace-root"])
 
         if not os.path.exists(self.workspace):
             os.makedirs(self.workspace, exist_ok=True)
+
+        configRepoUrl = config["config-repo"]
+        try:
+            configBranch = config["config-branch"]
+        except KeyError:
+            configBranch = "main"
+        configDir = os.path.join(self.workspace, "tubular-configs")
+        self.configRepo = Repo(configRepoUrl, configBranch, configDir)
+        self.loadConfigs()
+
+    def loadConfigs(self):
+        remoteCommit = git_cmds.getLatestRemoteCommit(self.configRepo)
+        if self.configCommit == remoteCommit:
+            return
+        self.configCommit = remoteCommit
+        git_cmds.cloneOrPull(self.configRepo)
+
+        # Load optional constants config
+        constsFile = os.path.join(self.configRepo.path, "constants.yaml")
+        if os.path.exists(constsFile):
+            consts = loadYAML(constsFile)
+            ConstManager.load(consts)
+
+        TempManager.setWorkspace(os.path.join(self.workspace, "temp"))
 
     def stop(self):
         if self.workerThread.is_alive():

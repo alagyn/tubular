@@ -12,7 +12,7 @@ from tubular_controller.nodeConnection import NodeConnection
 from tubular_controller.taskQueue import TaskQueue, QueueTask
 from tubular_controller.archiveLister import ArchiveLister
 
-from tubular.configLoader import load_configs
+from tubular.configLoader import loadMainConfig
 from tubular import git_cmds
 from tubular.pipeline import Pipeline, PipelineReq, PipelineDef, formatPipelineName
 from tubular.stage import Stage
@@ -20,9 +20,10 @@ from tubular_node.node import NodeStatus, PipelineStatus
 from tubular.pipeline_db import PipelineDB
 from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath
 from tubular.repo import Repo
-from tubular.trigger import Trigger
+from tubular.trigger import Trigger, makeTrigger
 from tubular.yaml import loadYAML
 from tubular.constantManager import ConstManager
+from tubular.tempManager import TempManager
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
@@ -49,6 +50,7 @@ class ControllerState:
         self.nodes: list[NodeConnection] = []
 
         self.configRepo: Repo = Repo("", "", "")
+        self.configHash = bytearray()
 
         self.pipelineRepoPath: str = ""
         self.pipelineRepoUrl = ""
@@ -74,13 +76,15 @@ class ControllerState:
             threading.Semaphore)
 
     def start(self):
-        config = load_configs()
+        config = loadMainConfig()
 
         ctrlConfigs = config["controller"]
         self.workspace = os.path.realpath(ctrlConfigs["workspace"])
 
         dbFile = os.path.join(self.workspace, "tubular.db")
         self._db = PipelineDB(dbFile)
+
+        TempManager.setWorkspace(os.path.join(self.workspace, "temp"))
 
         configRepoUrl = config["config-repo"]
         try:
@@ -109,8 +113,13 @@ class ControllerState:
 
         # lock both the threads if reloading live
         with self.taskQueueCV, self.triggerLock:
+            remoteCommit = git_cmds.getLatestRemoteCommit(self.configRepo)
+            if self.configCommit == remoteCommit:
+                return
+            self.configCommit = remoteCommit
             git_cmds.cloneOrPull(self.configRepo)
 
+            # Load pipeline configs
             pipeConfigs = loadYAML(
                 os.path.join(self.configRepo.path,
                              "pipelines.yaml"))['pipelines']
@@ -123,11 +132,19 @@ class ControllerState:
             except KeyError:
                 pass
 
+            # Load optional constants config
             constsFile = os.path.join(self.configRepo.path, "constants.yaml")
             if os.path.exists(constsFile):
                 consts = loadYAML(constsFile)
                 ConstManager.load(consts)
 
+            # Load optional trigger config
+            triggerFile = os.path.join(self.configRepo.path, "triggers.yaml")
+            if os.path.exists(triggerFile):
+                triggers = loadYAML(triggerFile)
+                self.triggers = [makeTrigger(t) for t in triggers["triggers"]]
+
+            # Load node configs
             nodeConfigs = loadYAML(
                 os.path.join(self.configRepo.path, "nodes.yaml"))['nodes']
 
@@ -150,6 +167,7 @@ class ControllerState:
                     if t.check():
                         for req in t.piplines:
                             self.queuePipeline(req)
+                TempManager.freeTempDirsByPrefix("trigger")
 
             time.sleep(TRIGGER_UPDATE_PERIOD)
 

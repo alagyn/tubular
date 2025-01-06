@@ -9,6 +9,7 @@ from tubular import git_cmds
 from tubular.taskEnv import TaskEnv
 from tubular.file_utils import sanitizeFilepath
 from tubular.repo import Repo
+from tubular.yaml import getStr
 
 
 class StepType(enum.IntEnum):
@@ -31,14 +32,6 @@ def strToStepType(e: str) -> StepType:
             return StepType.Archive
         case _:
             raise RuntimeError(f"Invalid Step type string: {e}")
-
-
-def getStr(config, key) -> str:
-    val = config[key]
-    if not isinstance(val, str):
-        raise RuntimeError(
-            f"Invalid entry for {key}, expected string got: {val}")
-    return val
 
 
 # TODO capture output

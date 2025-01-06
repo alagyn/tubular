@@ -33,6 +33,13 @@ def clone(repo: Repo, outputFile: TextIO | None):
             outputFile=outputFile)
 
 
+def cloneEmpty(repo: Repo):
+    _runCmd([
+        "git", "clone", repo.url, "--sparse", "--filter=blob:none",
+        "--no-checkout", repo.path
+    ])
+
+
 def pull(repo: Repo, outputFile: TextIO | None):
     _runCmd(["git", "fetch", "--depth=1"], repo.path, outputFile)
     _runCmd(["git", "reset", "--hard", f"origin/{repo.branch}"], repo.path,
@@ -87,3 +94,11 @@ def getLatestRemoteCommits(repo: Repo) -> dict[str, bytearray]:
             branch = branch[11:]
         out[branch] = bytearray.fromhex(commitHashStr)
     return out
+
+
+def getChangedFiles(repo: Repo, commit1: bytes, commit2: bytes) -> list[str]:
+    output = _captureCmd(
+        ["git", "diff", "--name-only", f'{commit1.hex()}..{commit2.hex()}'],
+        cwd=repo.path)
+
+    return output.splitlines()

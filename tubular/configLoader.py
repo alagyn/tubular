@@ -3,7 +3,7 @@ import os
 from tubular.yaml import loadYAML
 
 
-def load_configs():
+def loadMainConfig():
     try:
         cfgFile = os.environ["TUBULAR_CONFIG"]
     except KeyError:
