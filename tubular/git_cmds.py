@@ -3,6 +3,8 @@ import os
 import uuid
 from typing import TextIO
 
+from tubular.repo import Repo
+
 # TODO error checking
 
 
@@ -23,27 +25,28 @@ def _captureCmd(args, cwd=None) -> str:
     return ret.stdout.decode()
 
 
-def clone(url: str, branch: str, path: str, outputFile: TextIO | None):
-    _runCmd(["git", "clone", url, f"--branch={branch}", "--depth=1", path],
+def clone(repo: Repo, outputFile: TextIO | None):
+    _runCmd([
+        "git", "clone", repo.url, f"--branch={repo.branch}", "--depth=1",
+        repo.path
+    ],
             outputFile=outputFile)
 
 
-def pull(path: str, branch: str, outputFile: TextIO | None):
-    _runCmd(["git", "fetch", "--depth=1"], path, outputFile)
-    _runCmd(["git", "reset", "--hard", f"origin/{branch}"], path, outputFile)
+def pull(repo: Repo, outputFile: TextIO | None):
+    _runCmd(["git", "fetch", "--depth=1"], repo.path, outputFile)
+    _runCmd(["git", "reset", "--hard", f"origin/{repo.branch}"], repo.path,
+            outputFile)
 
     # TODO make this optional?
     # _runCmd(["git", "clean", "-dfx"], path)
 
 
-def cloneOrPull(url: str,
-                branch: str,
-                path: str,
-                outputFile: TextIO | None = None):
-    if not os.path.exists(path):
-        clone(url, branch, path, outputFile)
+def cloneOrPull(repo: Repo, outputFile: TextIO | None = None):
+    if not os.path.exists(repo.path):
+        clone(repo, outputFile)
     else:
-        pull(path, branch, outputFile)
+        pull(repo, outputFile)
 
 
 def getRepoName(url: str) -> str:
@@ -61,4 +64,26 @@ def getBranches(url: str) -> list[str]:
         if branch.startswith("refs/heads/"):
             branch = branch[11:]
         out.append(branch)
+    return out
+
+
+def getCurrentLocalCommit(repo: Repo) -> bytearray:
+    output = _captureCmd(["git", "rev-parse", "HEAD"], repo.path)
+    return bytearray.fromhex(output.strip())
+
+
+def getLatestRemoteCommit(repo: Repo) -> bytearray:
+    output = _captureCmd(["git", "ls-remote", "-b", repo.url, repo.branch])
+    commitHashStr = output.split()[0]
+    return bytearray.fromhex(commitHashStr)
+
+
+def getLatestRemoteCommits(repo: Repo) -> dict[str, bytearray]:
+    output = _captureCmd(["git", "ls-remote", "-b", repo.url])
+    out = {}
+    for line in output.splitlines():
+        commitHashStr, branch = line.split()
+        if branch.startswith("refs/heads/"):
+            branch = branch[11:]
+        out[branch] = bytearray.fromhex(commitHashStr)
     return out

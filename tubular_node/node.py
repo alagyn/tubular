@@ -9,6 +9,7 @@ from tubular.task import Task, TaskDef, TaskRequest
 from tubular.enums import NodeStatus, PipelineStatus
 from tubular.task_env import TaskEnv
 from tubular.file_utils import compressArchive, compressOutputFile
+from tubular.repo import Repo
 
 # TODO clean up old pipeline repos/branches?
 
@@ -47,8 +48,9 @@ class NodeState:
 
     def runTask(self, taskReq: TaskRequest):
         repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
+        repo = Repo(taskReq.repo_url, taskReq.branch, repoDir)
         try:
-            git_cmds.cloneOrPull(taskReq.repo_url, taskReq.branch, repoDir)
+            git_cmds.cloneOrPull(repo)
             taskDef = TaskDef(repoDir, taskReq.task_path)
             taskWorkspace = os.path.join(repoDir, f'{taskDef.name}.workspace')
             taskArchive = os.path.join(repoDir, f'{taskDef.name}.archive')

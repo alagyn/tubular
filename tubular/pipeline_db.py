@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS runs
 (
     pipeline INTEGER,
     branch TEXT,
+    commit BLOB,
     run INTEGER,
     start_ts INTEGER,
     duration_ms INTEGER,
@@ -63,9 +64,9 @@ CREATE TABLE IF NOT EXISTS runs
 
 RUNS_ADD = """
 INSERT INTO runs
-    (pipeline, branch, run, start_ts, duration_ms, status, meta)
+    (pipeline, branch, commit, run, start_ts, duration_ms, status, meta)
 VALUES
-    (:pipeline_id, :branch, :run, :start_ts, 0, 2, "{}")
+    (:pipeline_id, :branch, :commit, :run, :start_ts, 0, 2, "{}")
 """
 
 RUNS_SET_DATA = """
@@ -217,8 +218,8 @@ class PipelineDB:
         return pId, run
 
     @lock
-    def addRun(self, pipelineID: int, runNum: int, branch: str, start: float,
-               maxRuns: int) -> list[int]:
+    def addRun(self, pipelineID: int, runNum: int, branch: str, commit: bytes,
+               start: float, maxRuns: int) -> list[int]:
         """
         Adds a new run, and removes any rows over the max number.
         Returns the runNum for removed rows.

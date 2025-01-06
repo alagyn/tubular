@@ -8,6 +8,7 @@ import shutil
 from tubular import git_cmds
 from tubular.task_env import TaskEnv
 from tubular.file_utils import sanitizeFilepath
+from tubular.repo import Repo
 
 
 class StepType(enum.IntEnum):
@@ -68,10 +69,11 @@ class _StepActionClone(Step):
         branch = taskEnv.replace(self.branch)
 
         path = os.path.join(taskEnv.workspace, git_cmds.getRepoName(url))
+        repo = Repo(url, branch, path)
 
         out.write(f"[ Clone {url} {branch}] ({taskEnv.getTime()})\n")
         out.flush()
-        git_cmds.cloneOrPull(url, branch, path, out)
+        git_cmds.cloneOrPull(repo, out)
 
 
 class _StepActionScript(Step):

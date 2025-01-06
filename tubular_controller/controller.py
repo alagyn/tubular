@@ -18,11 +18,11 @@ from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
 from tubular.pipeline_db import PipelineDB
 from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath, ensureParents
+from tubular.repo import Repo
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
-
-# TODO cleanup old archives
+TRIGGER_UPDATE_PERIOD = 30
 
 
 class Node:
@@ -213,6 +213,8 @@ class ControllerState:
         self.taskQueueCV = threading.Condition()
         self.taskQueue = TaskQueue()
 
+        self.triggerLock = threading.Semaphore()
+
         self._lastNodeCheck = 0
         self._tasksWaiting = 0
 
@@ -252,7 +254,8 @@ class ControllerState:
 
         self.updateNodeStatus()
 
-        self._workerThread = threading.Thread(target=self.management_thread)
+        self._workerThread = threading.Thread(
+            target=self.queueManagementThread)
         self._workerThread.start()
 
     def stop(self):
@@ -261,7 +264,14 @@ class ControllerState:
             self.taskQueueCV.notify()
         self._workerThread.join()
 
-    def management_thread(self):
+    def triggerManagementThread(self):
+        while True:
+            with self.triggerLock:
+                pass
+
+            time.sleep(TRIGGER_UPDATE_PERIOD)
+
+    def queueManagementThread(self):
         while True:
             needSleep = False
             with self.taskQueueCV:
@@ -301,8 +311,9 @@ class ControllerState:
         path = self._getRepoPath(pipelineReq.branch)
 
         with self._branchLocks[path]:
-            repoPath = self._cloneOrPullRepo(pipelineReq.branch)
-            pipelineDef = PipelineDef(repoPath, pipelineReq.pipeline_path)
+            repo = self._cloneOrPullRepo(pipelineReq.branch)
+            commit = git_cmds.getCurrentLocalCommit(repo)
+            pipelineDef = PipelineDef(repo.path, pipelineReq.pipeline_path)
 
             pipelineID, runNum = self._db.getPipelineIDAndNextRun(
                 pipelineDef.file)
@@ -326,7 +337,7 @@ class ControllerState:
             start = time.time()
 
             oldRuns = self._db.addRun(pipelineID, runNum, pipelineReq.branch,
-                                      start, pipeline.meta.maxRuns)
+                                      commit, start, pipeline.meta.maxRuns)
 
             for x in oldRuns:
                 oldArch = self._getArchivePath(pipelineReq.branch,
@@ -447,21 +458,24 @@ class ControllerState:
         return os.path.join(self._getBranchPath(branch), "output",
                             f'{name}.{runNum}')
 
-    def _cloneOrPullRepo(self, branch: str) -> str:
+    def _cloneOrPullRepo(self, branch: str) -> Repo:
         """
         Returns the path to repo
         """
         path = self._getRepoPath(branch)
-        git_cmds.cloneOrPull(self.pipelineRepoUrl, branch, path)
-        return path
+        repo = Repo(self.pipelineRepoUrl, branch, path)
+        git_cmds.cloneOrPull(repo)
+        return repo
 
     def _updatePipelineCache(self, branch: str) -> _PipelineCache:
-        path = self._cloneOrPullRepo(branch)
+        repo = self._cloneOrPullRepo(branch)
 
         pipelineFiles: list[str] = []
 
-        for file in glob.iglob(f'**/*.yaml', root_dir=path, recursive=True):
-            fullPath = os.path.join(path, file)
+        for file in glob.iglob(f'**/*.yaml',
+                               root_dir=repo.path,
+                               recursive=True):
+            fullPath = os.path.join(repo.path, file)
             with open(fullPath, mode='r') as f:
                 for line in f:
                     match line.strip():
@@ -471,7 +485,7 @@ class ControllerState:
                         case "steps:":
                             break
 
-        pipelines = [PipelineDef(path, x) for x in pipelineFiles]
+        pipelines = [PipelineDef(repo.path, x) for x in pipelineFiles]
         out = _PipelineCache(pipelines, time.time())
         self._pipelineCache[branch] = out
         return out
