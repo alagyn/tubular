@@ -8,179 +8,25 @@ from collections import defaultdict
 import traceback
 import json
 
-import requests
+from tubular_controller.nodeConnection import NodeConnection
+from tubular_controller.taskQueue import TaskQueue, QueueTask
+from tubular_controller.archiveLister import ArchiveLister
 
-from tubular.config_loader import load_configs
+from tubular.configLoader import load_configs
 from tubular import git_cmds
 from tubular.pipeline import Pipeline, PipelineReq, PipelineDef, formatPipelineName
 from tubular.stage import Stage
-from tubular.task import Task
 from tubular_node.node import NodeStatus, PipelineStatus
 from tubular.pipeline_db import PipelineDB
-from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath, ensureParents
+from tubular.file_utils import decompressArchive, decompressOutputFile, sanitizeFilepath
 from tubular.repo import Repo
+from tubular.trigger import Trigger
+from tubular.yaml import loadYAML
+from tubular.constantManager import ConstManager
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
-TRIGGER_UPDATE_PERIOD = 30
-
-
-class Node:
-
-    def __init__(self, name: str, hostname: str, port: int,
-                 tags: list[str]) -> None:
-        self.name = name
-        self.hostname = hostname
-        self.port = port
-        self.tags: set[str] = set(tags)
-        self.status = NodeStatus.Offline
-
-        self._url = f"http://{self.hostname}:{self.port}"
-
-        self.currentTask: Task | None = None
-
-        self._downloadThread: threading.Thread | None = None
-
-    def sendTask(self, pipeline: Pipeline, task: Task):
-        print("sending task to", self.name, task.meta.name)
-        self.currentTask = task
-        args = task.toTaskReq(pipeline.args)
-        requests.post(url=f'{self._url}/queue',
-                      json=args.model_dump(),
-                      timeout=5)
-
-    def _downloadArchive(self, task: Task, finalTaskStatus: PipelineStatus):
-        args = task.toTaskReq({}).model_dump()
-
-        # Download archived files
-        ensureParents(task.archiveZipFile)
-        with requests.get(url=f'{self._url}/archive', stream=True,
-                          json=args) as r:
-            r.raise_for_status()
-            with open(task.archiveZipFile, mode='wb') as f:
-                for chunk in r.iter_content():
-                    f.write(chunk)
-
-        # Download output
-        ensureParents(task.outputZipFile)
-        with requests.get(url=f'{self._url}/output', stream=True,
-                          json=args) as r:
-            with open(task.outputZipFile, mode='wb') as f:
-                for chunk in r.iter_content():
-                    f.write(chunk)
-
-        # set status here so we wait till after the download
-        task.setStatus(finalTaskStatus)
-
-    def updateStatus(self):
-        try:
-            if self._downloadThread is not None:
-                if self._downloadThread.is_alive():
-                    # don't do anything until the download is complete
-                    return
-                else:
-                    self._downloadThread.join()
-                    self._downloadThread = None
-
-            ret = requests.get(url=f'{self._url}/status', timeout=2)
-            data = ret.json()
-
-            taskStatus = PipelineStatus[data["task_status"]]
-
-            if self.currentTask is not None and taskStatus != PipelineStatus.Running and taskStatus != PipelineStatus.NotRun:
-                self._downloadThread = threading.Thread(
-                    target=self._downloadArchive,
-                    args=(self.currentTask, taskStatus))
-                self._downloadThread.start()
-                self.status = NodeStatus.Archiving
-                self.currentTask = None
-            else:
-                self.status = NodeStatus[data['status']]
-        except requests.Timeout:
-            self.status = NodeStatus.Offline
-        except requests.ConnectionError:
-            self.status = NodeStatus.Offline
-
-
-class ArchiveLister:
-
-    def __init__(self, pipeline: str, branch: str, run: int, archivePath: str,
-                 api: str) -> None:
-        self.pipeline = pipeline
-        self.branch = branch
-        self.run = run
-        self.archivePath = archivePath
-        self.api = api
-
-    def getArchiveList(self) -> dict:
-        out = {}
-        self._buildArchiveList("", self.archivePath, out)
-        return out
-
-    def _buildArchiveList(self, parentPath: str, curPath: str, out: dict):
-        out['label'] = curPath
-
-        children = []
-        out['children'] = children
-
-        fullPath = os.path.join(parentPath, curPath)
-
-        for x in os.scandir(fullPath):
-            child = {}
-
-            if x.is_file():
-                child['label'] = x.name
-                relPath = os.path.relpath(os.path.join(fullPath, x.name),
-                                          self.archivePath)
-                child[
-                    'href'] = f'/api/{self.api}?pipeline={self.pipeline}&branch={self.branch}&run={self.run}&file={relPath}'
-            else:
-                self._buildArchiveList(fullPath, x.name, child)
-
-            children.append(child)
-
-
-class QueueTask:
-
-    def __init__(self, pipeline: Pipeline, task: Task,
-                 availableNodes: set[Node]) -> None:
-        self.pipeline = pipeline
-        self.task = task
-        self.availableNodes = availableNodes
-        self.prev: QueueTask | None = None
-        self.next: QueueTask | None = None
-
-
-class TaskQueue:
-
-    def __init__(self) -> None:
-        self.front: QueueTask | None = None
-        self.back: QueueTask | None = None
-        self.size = 0
-
-    def push(self, item: QueueTask):
-        self.size += 1
-        if self.back is None:
-            self.front = item
-            self.back = item
-        else:
-            self.back.next = item
-            item.prev = self.back
-            self.back = item
-
-    def unlink(self, item: QueueTask):
-        self.size -= 1
-        if item is self.back:
-            self.back = item.prev
-        if item is self.front:
-            self.front = item.next
-        if item.prev is not None:
-            item.prev.next = item.next
-        if item.next is not None:
-            item.next.prev = item.prev
-
-    def __len__(self) -> int:
-        return self.size
+TRIGGER_UPDATE_PERIOD = 300
 
 
 class _PipelineCache:
@@ -200,7 +46,9 @@ class ControllerState:
 
     def __init__(self) -> None:
         self.workspace = ""
-        self.nodes: list[Node] = []
+        self.nodes: list[NodeConnection] = []
+
+        self.configRepo: Repo = Repo("", "", "")
 
         self.pipelineRepoPath: str = ""
         self.pipelineRepoUrl = ""
@@ -214,6 +62,8 @@ class ControllerState:
         self.taskQueue = TaskQueue()
 
         self.triggerLock = threading.Semaphore()
+
+        self.triggers: list[Trigger] = []
 
         self._lastNodeCheck = 0
         self._tasksWaiting = 0
@@ -232,27 +82,16 @@ class ControllerState:
         dbFile = os.path.join(self.workspace, "tubular.db")
         self._db = PipelineDB(dbFile)
 
-        pipeConfigs = config["pipelines"]
-        self.pipelineRepoUrl = pipeConfigs["url"]
-        self.pipelineRepoPath = os.path.join(
-            self.workspace, git_cmds.getRepoName(self.pipelineRepoUrl))
-
+        configRepoUrl = config["config-repo"]
         try:
-            self.pipelineRepoDefBranch = str(pipeConfigs["default-branch"])
+            configBranch = config["config-branch"]
         except KeyError:
-            pass
+            configBranch = "main"
 
-        for name, args in config['nodes'].items():
-            try:
-                hostname = args["host"]
-            except KeyError:
-                hostname = name
-            port = args["port"]
-            tags = args["tags"]
-            n = Node(name, hostname, port, tags)
-            self.nodes.append(n)
+        configDir = os.path.join(self.workspace, "tubular-configs")
+        self.configRepo = Repo(configRepoUrl, configBranch, configDir)
 
-        self.updateNodeStatus()
+        self.loadConfigs()
 
         self._workerThread = threading.Thread(
             target=self.queueManagementThread)
@@ -264,10 +103,53 @@ class ControllerState:
             self.taskQueueCV.notify()
         self._workerThread.join()
 
+    def loadConfigs(self):
+        # TODO revert if config load fails
+        # TODO report config load errors somewhere
+
+        # lock both the threads if reloading live
+        with self.taskQueueCV, self.triggerLock:
+            git_cmds.cloneOrPull(self.configRepo)
+
+            pipeConfigs = loadYAML(
+                os.path.join(self.configRepo.path,
+                             "pipelines.yaml"))['pipelines']
+            self.pipelineRepoUrl = pipeConfigs["url"]
+            self.pipelineRepoPath = os.path.join(
+                self.workspace, git_cmds.getRepoName(self.pipelineRepoUrl))
+
+            try:
+                self.pipelineRepoDefBranch = str(pipeConfigs["default-branch"])
+            except KeyError:
+                pass
+
+            constsFile = os.path.join(self.configRepo.path, "constants.yaml")
+            if os.path.exists(constsFile):
+                consts = loadYAML(constsFile)
+                ConstManager.load(consts)
+
+            nodeConfigs = loadYAML(
+                os.path.join(self.configRepo.path, "nodes.yaml"))['nodes']
+
+            for name, args in nodeConfigs.items():
+                try:
+                    hostname = args["host"]
+                except KeyError:
+                    hostname = name
+                port = args["port"]
+                tags = args["tags"]
+                n = NodeConnection(name, hostname, port, tags)
+                self.nodes.append(n)
+
+            self.updateNodeStatus()
+
     def triggerManagementThread(self):
         while True:
             with self.triggerLock:
-                pass
+                for t in self.triggers:
+                    if t.check():
+                        for req in t.piplines:
+                            self.queuePipeline(req)
 
             time.sleep(TRIGGER_UPDATE_PERIOD)
 
@@ -394,7 +276,7 @@ class ControllerState:
 
     def runStage(self, pipeline: Pipeline, stage: Stage, statuses: list[dict]):
         for task in stage.tasks:
-            availableNodes: list[Node] = []
+            availableNodes: list[NodeConnection] = []
             for x in self.nodes:
                 # make sure all of the whitelisted tags are present
                 if len(task.meta.whiteTags - x.tags) > 0:

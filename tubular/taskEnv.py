@@ -1,9 +1,8 @@
 import os
-from typing import Dict, List
-import re
+from typing import Dict
 import time
 
-_REPL_RE = re.compile(r"@\{(?P<arg>\w+)\}")
+from tubular.constantManager import ConstManager
 
 
 class TaskEnv:
@@ -22,18 +21,11 @@ class TaskEnv:
         self.taskStep = 0
         self.startTime = 0.0
 
+    def replace(self, text: str) -> str:
+        return ConstManager.replace(text, self.args)
+
     def start(self):
         self.startTime = time.time()
-
-    def replace(self, text: str) -> str:
-
-        def _repl(key: re.Match) -> str:
-            try:
-                return self.args[key.group("arg")]
-            except KeyError:
-                return key.group()
-
-        return _REPL_RE.sub(_repl, text)
 
     def getTime(self) -> str:
         diff = time.time() - self.startTime

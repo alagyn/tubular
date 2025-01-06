@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any
 import os
 
 from pydantic import BaseModel
@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from tubular.stage import StageDef, Stage
 from tubular import git_cmds
 from tubular.yaml import loadYAML
-from tubular import pipeline_db
 from tubular.enums import PipelineStatus
 
 
@@ -24,6 +23,9 @@ def formatPipelineName(pipelineFile: str) -> str:
 
 
 class PipelineDef:
+    """
+    Definition of a pipeline
+    """
 
     def __init__(self, repoPath: str, file: str) -> None:
         self.file = file
@@ -51,6 +53,9 @@ class PipelineDef:
 
 
 class Pipeline:
+    """
+    Encapsulates a single run of a pipeline
+    """
 
     def __init__(self, repoUrl: str, pipelineDef: PipelineDef,
                  req: PipelineReq, archivePath: str, outputPath: str) -> None:
