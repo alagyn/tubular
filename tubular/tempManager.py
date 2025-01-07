@@ -45,7 +45,7 @@ class TempManager:
 
     @classmethod
     def freeTempDirsByPrefix(cls, prefix: str):
-        keys = cls._tempDirs.keys()
+        keys = list(cls._tempDirs.keys())
         for key in keys:
             if key.startswith(prefix):
                 cls.freeTempDir(key)

@@ -27,7 +27,7 @@ from tubular.tempManager import TempManager
 
 NODE_UPDATE_PERIOD = 2
 PIPELINE_UPDATE_PERIOD = 30
-TRIGGER_UPDATE_PERIOD = 300
+TRIGGER_UPDATE_PERIOD = 30
 
 
 class _PipelineCache:
@@ -50,7 +50,7 @@ class ControllerState:
         self.nodes: list[NodeConnection] = []
 
         self.configRepo: Repo = Repo("", "", "")
-        self.configHash = bytearray()
+        self.configCommit = bytearray()
 
         self.pipelineRepoPath: str = ""
         self.pipelineRepoUrl = ""
@@ -64,7 +64,7 @@ class ControllerState:
         self.taskQueue = TaskQueue()
 
         self.triggerLock = threading.Semaphore()
-
+        self._triggerThread = threading.Thread()
         self.triggers: list[Trigger] = []
 
         self._lastNodeCheck = 0
@@ -100,6 +100,10 @@ class ControllerState:
         self._workerThread = threading.Thread(
             target=self.queueManagementThread)
         self._workerThread.start()
+
+        self._triggerThread = threading.Thread(
+            target=self.triggerManagementThread)
+        self._triggerThread.start()
 
     def stop(self):
         self.shouldRun = False

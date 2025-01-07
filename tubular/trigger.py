@@ -30,6 +30,8 @@ class Trigger:
         for p in pipelineConfigs:
             try:
                 target = p["target"]
+                if not isinstance(target, str):
+                    raise RuntimeError("Invalid trigger pipeline target")
             except KeyError:
                 raise RuntimeError(
                     "Triggered pipeline missing target [triggers.*.pipelines.target]"
@@ -40,9 +42,12 @@ class Trigger:
             except KeyError:
                 argsDict: dict[str, str] = {}
 
+            if not target.endswith(".yaml"):
+                target = f'{target}.yaml'
+
             args: list[dict[str, str]] = []
             for key, val in argsDict.items():
-                args.append({key: val})
+                args.append({"k": key, "v": val})
 
             req = PipelineReq(branch="", pipeline_path=target, args=args)
             self.piplines.append(req)
@@ -123,7 +128,8 @@ class ScheduleTrigger(Trigger):
         # TODO
 
     def check(self) -> bool:
-        return super().check()
+        # TODO
+        return False
 
 
 def makeTrigger(config: dict[str, Any]) -> Trigger:

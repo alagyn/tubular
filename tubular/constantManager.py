@@ -1,6 +1,6 @@
 import re
 
-_REPL_RE = re.compile(r"@\{(?P<arg>\w+)\}")
+_REPL_RE = re.compile(r"@\{(?P<arg>[\w\-_]+)\}")
 
 
 class ConstManager:
@@ -11,6 +11,13 @@ class ConstManager:
 
     @classmethod
     def load(cls, constants: dict[str, str]):
+        if not isinstance(constants, dict):
+            raise RuntimeError("Invalid constants.yaml")
+        for key, val in constants.items():
+            if not isinstance(val, str):
+                raise RuntimeError(f"Invalid constant value for key: {key}")
+
+        print(constants)
         cls.constants = constants
 
     @classmethod
