@@ -120,6 +120,7 @@ class ControllerState:
             remoteCommit = git_cmds.getLatestRemoteCommit(self.configRepo)
             if self.configCommit == remoteCommit:
                 return
+            print("Reloading Configs")
             self.configCommit = remoteCommit
             git_cmds.cloneOrPull(self.configRepo)
 
@@ -166,6 +167,9 @@ class ControllerState:
 
     def triggerManagementThread(self):
         while True:
+            # attempt to load new configs
+            # does nothing if no new commits
+            self.loadConfigs()
             with self.triggerLock:
                 for t in self.triggers:
                     if t.check():

@@ -16,8 +16,6 @@ class ConstManager:
         for key, val in constants.items():
             if not isinstance(val, str):
                 raise RuntimeError(f"Invalid constant value for key: {key}")
-
-        print(constants)
         cls.constants = constants
 
     @classmethod
