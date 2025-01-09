@@ -77,6 +77,9 @@ class NodeState:
         self.workerThread.start()
 
     def runTask(self, taskReq: TaskRequest):
+        # always attempt to update configs before starting a task
+        self.loadConfigs()
+
         repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
         repo = Repo(taskReq.repo_url, taskReq.branch, repoDir)
         try:
