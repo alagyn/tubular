@@ -25,7 +25,10 @@ async def root():
 
 
 @app.get("/status")
-async def getStatus():
+async def getStatus(updateConfig: bool = False):
+    if updateConfig:
+        print("Setting need update")
+        NODE_STATE.needUpdateConfig = True
     return {
         "status": NODE_STATE.status.name,
         "task_status": NODE_STATE.taskStatus.name,

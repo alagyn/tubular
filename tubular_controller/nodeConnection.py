@@ -54,7 +54,7 @@ class NodeConnection:
         # set status here so we wait till after the download
         task.setStatus(finalTaskStatus)
 
-    def updateStatus(self):
+    def updateStatus(self, updateConfigs: bool):
         try:
             if self._downloadThread is not None:
                 if self._downloadThread.is_alive():
@@ -64,7 +64,9 @@ class NodeConnection:
                     self._downloadThread.join()
                     self._downloadThread = None
 
-            ret = requests.get(url=f'{self._url}/status', timeout=2)
+            ret = requests.get(
+                url=f'{self._url}/status?updateConfig={updateConfigs}',
+                timeout=2)
             data = ret.json()
 
             taskStatus = PipelineStatus[data["task_status"]]

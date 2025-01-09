@@ -75,6 +75,8 @@ class ControllerState:
         self._branchLocks: dict[str, threading.Semaphore] = defaultdict(
             threading.Semaphore)
 
+        self._lastConfigUpdate = time.time()
+
     def start(self):
         config = loadMainConfig()
 
@@ -153,6 +155,8 @@ class ControllerState:
             nodeConfigs = loadYAML(
                 os.path.join(self.configRepo.path, "nodes.yaml"))['nodes']
 
+            self.nodes = []
+
             for name, args in nodeConfigs.items():
                 try:
                     hostname = args["host"]
@@ -163,7 +167,7 @@ class ControllerState:
                 n = NodeConnection(name, hostname, port, tags)
                 self.nodes.append(n)
 
-            self.updateNodeStatus()
+            self.updateNodeStatus(True)
 
     def triggerManagementThread(self):
         while True:
@@ -339,15 +343,16 @@ class ControllerState:
 
         print(f"Stage complete: {stage.meta.display}")
 
-    def _updateNodeStatusThread(self):
+    def _updateNodeStatusThread(self, updateConfigs: bool):
         for node in self.nodes:
-            node.updateStatus()
+            node.updateStatus(updateConfigs)
 
-    def updateNodeStatus(self):
+    def updateNodeStatus(self, updateConfigs: bool = False):
         curTime = time.time()
         if curTime - self._lastNodeCheck > NODE_UPDATE_PERIOD:
             self._lastNodeCheck = curTime
-            threading.Thread(target=self._updateNodeStatusThread).start()
+            threading.Thread(target=self._updateNodeStatusThread,
+                             args=(updateConfigs, )).start()
 
     def getNodeStatus(self) -> dict[str, str]:
         self.updateNodeStatus()

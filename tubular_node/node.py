@@ -28,6 +28,8 @@ class NodeState:
         self.configRepo = Repo("", "", "")
         self.configCommit = bytearray()
 
+        self.needUpdateConfig = False
+
     def start(self):
         config = loadMainConfig()
         self.workspace = os.path.realpath(config["node"]["workspace-root"])
@@ -48,6 +50,7 @@ class NodeState:
         remoteCommit = git_cmds.getLatestRemoteCommit(self.configRepo)
         if self.configCommit == remoteCommit:
             return
+        print("Loading configs")
         self.configCommit = remoteCommit
         git_cmds.cloneOrPull(self.configRepo)
 
@@ -78,7 +81,9 @@ class NodeState:
 
     def runTask(self, taskReq: TaskRequest):
         # always attempt to update configs before starting a task
-        self.loadConfigs()
+        if self.needUpdateConfig:
+            self.loadConfigs()
+            self.needUpdateConfig = False
 
         repoDir = os.path.join(self.workspace, taskReq.getRepoPath())
         repo = Repo(taskReq.repo_url, taskReq.branch, repoDir)
