@@ -19,6 +19,7 @@ need to inspect the workspace and output of a pipeline from time to time.
 - **Version Control**: Everything is version controlled, and we mean everything.
 - **Web Management UI**: View and run pipelines in your browser.
 - **Auto Triggers**: Automatically run pipelines on a schedule or when somebody commits
+- **Live Config Reloading**: Just commit config changes to have it reflected in your system
 
 ## Quick-Start
 

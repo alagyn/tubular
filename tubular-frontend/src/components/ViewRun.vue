@@ -30,8 +30,8 @@ onMounted(() =>
     <div>View Run {{ args.run }}</div>
 
     <div>
-        <a :href="`#/archive?pipeline=${args.pipeline}&branch=${args.branch}&run=${args.run}`"
-            class="pure-button">Archive: {{ meta.numArchived }} items</a>
+        <a :href="`#/archive?pipeline=${args.pipeline}&branch=${args.branch}&run=${args.run}`" class="pure-button">View
+            Archive: {{ meta.numArchived }} items</a>
     </div>
 
 
