@@ -6,6 +6,11 @@ __pycache__/
 *.code-workspace
 test-workspace/
 tubular.yaml
+!docker/tubular.yaml
+
+dist/
+
+*.whl
 
 # C extensions
 *.so

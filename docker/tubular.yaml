@@ -1,0 +1,5 @@
+node:
+  workspace-root: /home/tubular/workspace
+
+controller:
+  workspace: /home/tubular/workspace

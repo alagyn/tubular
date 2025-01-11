@@ -17,7 +17,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
-dependencies = ["fastapi>=0.112.1", "pyyaml>=6.0.2", "requests>=2.32.3"]
+dependencies = [
+    "fastapi>=0.112.1",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.3",
+    "uvicorn[standard]>=0.32.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/alagyn/tubular"

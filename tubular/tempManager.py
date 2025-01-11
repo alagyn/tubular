@@ -52,7 +52,7 @@ class TempManager:
 
 
 @contextmanager
-def tempdir() -> Generator[str]:
+def tempdir() -> Generator[str, None, None]:
     """
     Context manager that creates a temp directory in the workspace
     and deletes the contents after the manager exits
