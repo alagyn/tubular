@@ -1,16 +1,12 @@
 FROM alpine:3.21.2
 
-RUN apk add --no-cache python3
+RUN apk add --no-cache python3 git libssh2
 RUN addgroup -S tubular && adduser -S tubular -G tubular -h /home/tubular
 
 USER tubular:tubular
 
 ADD tubular*.whl /home/tubular/
 RUN cd /home/tubular && python3 -m venv venv && \
-    ./venv/bin/pip install tubular*.whl && \
+    ./venv/bin/pip install --compile --no-cache-dir tubular*.whl && \
     rm tubular*.whl
 RUN mkdir /home/tubular/workspace
-
-ADD tubular.yaml /home/tubular/
-
-ENTRYPOINT ["/bin/sh", "-i"]

@@ -1,9 +1,7 @@
 import threading
 import os
 import shutil
-import time
 
-from tubular.configLoader import loadMainConfig
 from tubular.yaml import loadYAML
 from tubular import git_cmds
 from tubular.task import Task, TaskDef, TaskRequest
@@ -31,15 +29,22 @@ class NodeState:
         self.needUpdateConfig = False
 
     def start(self):
-        config = loadMainConfig()
-        self.workspace = os.path.realpath(config["node"]["workspace-root"])
+        try:
+            self.workspace = os.path.realpath(
+                os.environ["TUBULAR_NODE_WORKSPACE"])
+        except KeyError:
+            raise RuntimeError("Please set TUBULAR_NODE_WORKSPACE env var")
 
         if not os.path.exists(self.workspace):
             os.makedirs(self.workspace, exist_ok=True)
 
-        configRepoUrl = config["config-repo"]
         try:
-            configBranch = config["config-branch"]
+            configRepoUrl = os.environ["TUBULAR_CONFIG_REPO"]
+        except KeyError:
+            raise RuntimeError("Please set TUBULAR_CONFIG_REPO env var")
+
+        try:
+            configBranch = os.environ["TUBULAR_CONFIG_REPO_BRANCH"]
         except KeyError:
             configBranch = "main"
         configDir = os.path.join(self.workspace, "tubular-configs")

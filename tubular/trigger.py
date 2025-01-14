@@ -1,5 +1,5 @@
 from typing import Any
-import glob
+import fnmatch
 import re
 import os
 import datetime
@@ -80,7 +80,7 @@ class CommitTrigger(Trigger):
             patterns = list(config["include"])
             # compile the globs into REs
             self.patterns: list[re.Pattern] = [
-                re.compile(glob.translate(x)) for x in patterns
+                re.compile(fnmatch.translate(x)) for x in patterns
             ]
         except KeyError:
             self.patterns = []

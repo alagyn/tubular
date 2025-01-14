@@ -3,4 +3,5 @@ FROM tubular-base:1
 USER tubular:tubular
 
 WORKDIR /home/tubular
+ENV TUBULAR_NODE_WORKSPACE=/home/tubular/workspace
 ENTRYPOINT ["/home/tubular/venv/bin/uvicorn", "--host=0.0.0.0", "--port=8080", "tubular_node.node_router:app"]

@@ -12,7 +12,6 @@ from tubular_controller.nodeConnection import NodeConnection
 from tubular_controller.taskQueue import TaskQueue, QueueTask
 from tubular_controller.archiveLister import ArchiveLister
 
-from tubular.configLoader import loadMainConfig
 from tubular import git_cmds
 from tubular.pipeline import Pipeline, PipelineReq, PipelineDef, formatPipelineName
 from tubular.stage import Stage
@@ -78,19 +77,24 @@ class ControllerState:
         self._lastConfigUpdate = time.time()
 
     def start(self):
-        config = loadMainConfig()
-
-        ctrlConfigs = config["controller"]
-        self.workspace = os.path.realpath(ctrlConfigs["workspace"])
+        try:
+            self.workspace = os.path.realpath(
+                os.environ["TUBULAR_CTRL_WORKSPACE"])
+        except KeyError:
+            raise RuntimeError("Please set TUBULAR_CTRL_WORKSPACE env var")
 
         dbFile = os.path.join(self.workspace, "tubular.db")
         self._db = PipelineDB(dbFile)
 
         TempManager.setWorkspace(os.path.join(self.workspace, "temp"))
 
-        configRepoUrl = config["config-repo"]
         try:
-            configBranch = config["config-branch"]
+            configRepoUrl = os.environ["TUBULAR_CONFIG_REPO"]
+        except KeyError:
+            raise RuntimeError("Please set TUBULAR_CONFIG_REPO env var")
+
+        try:
+            configBranch = os.environ["TUBULAR_CONFIG_REPO_BRANCH"]
         except KeyError:
             configBranch = "main"
 
