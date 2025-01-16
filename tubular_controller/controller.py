@@ -78,10 +78,10 @@ class ControllerState:
 
     def start(self):
         try:
-            self.workspace = os.path.realpath(
-                os.environ["TUBULAR_CTRL_WORKSPACE"])
+            self.workspace = os.path.join(
+                os.path.realpath(os.environ["TUBULAR_WORKSPACE"]), "ctrl")
         except KeyError:
-            raise RuntimeError("Please set TUBULAR_CTRL_WORKSPACE env var")
+            raise RuntimeError("Please set TUBULAR_WORKSPACE env var")
 
         dbFile = os.path.join(self.workspace, "tubular.db")
         self._db = PipelineDB(dbFile)
@@ -104,18 +104,18 @@ class ControllerState:
         self.loadConfigs()
 
         self._workerThread = threading.Thread(
-            target=self.queueManagementThread)
+            target=self.queueManagementThread, daemon=True)
         self._workerThread.start()
 
         self._triggerThread = threading.Thread(
-            target=self.triggerManagementThread)
+            target=self.triggerManagementThread, daemon=True)
         self._triggerThread.start()
 
     def stop(self):
+        print("Shutting down")
         self.shouldRun = False
         with self.taskQueueCV:
             self.taskQueueCV.notify()
-        self._workerThread.join()
 
     def loadConfigs(self):
         # TODO revert if config load fails
@@ -184,6 +184,9 @@ class ControllerState:
                         for req in t.piplines:
                             self.queuePipeline(req)
                 TempManager.freeTempDirsByPrefix("trigger")
+
+            if not self.shouldRun:
+                break
 
             time.sleep(TRIGGER_UPDATE_PERIOD)
 

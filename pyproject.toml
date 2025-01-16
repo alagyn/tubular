@@ -32,7 +32,20 @@ dependencies = [
 path = "tubular/version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["tubular", "tubular_controller", "tubular_node"]
+include = [
+    "tubular",
+    "tubular_controller",
+    "tubular_node",
+    "tubular-frontend/dist/**",
+]
+artifacts = ["tubular-frontend/dist/**"]
+
+# [tool.hatch.build.targets.wheel.sources]
+# "tubular-frontend/dist" = "tubular-frontend/dist"
 
 [tool.hatch.build.targets.sdist]
-only-include = ["tubular", "tubular_controller", "tubular_node"]
+include = ["tubular", "tubular_controller", "tubular_node", "tubular-frontend"]
+exclude = ["*/node_modules/*", "*/dist/*"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+# ILB, causes hatch_build.py to run

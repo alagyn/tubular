@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import traceback
+import os
 
 from tubular_controller.controller import ControllerState, PipelineReq
 
@@ -108,4 +109,8 @@ async def getRunStatuses(pipeline: str, run: int):
 
 # mount these last
 app.include_router(apiRouter)
-app.mount("/", StaticFiles(directory="tubular-frontend/dist", html=True))
+
+FILE_DIR = os.path.abspath(os.path.dirname(__file__))
+PACKAGE_ROOT = os.path.split(FILE_DIR)[0]
+FRONTEND_DIR = os.path.join(PACKAGE_ROOT, "tubular-frontend", "dist")
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True))

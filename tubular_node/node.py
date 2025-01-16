@@ -30,10 +30,10 @@ class NodeState:
 
     def start(self):
         try:
-            self.workspace = os.path.realpath(
-                os.environ["TUBULAR_NODE_WORKSPACE"])
+            self.workspace = os.path.join(
+                os.path.realpath(os.environ["TUBULAR_WORKSPACE"]), "node")
         except KeyError:
-            raise RuntimeError("Please set TUBULAR_NODE_WORKSPACE env var")
+            raise RuntimeError("Please set TUBULAR_WORKSPACE env var")
 
         if not os.path.exists(self.workspace):
             os.makedirs(self.workspace, exist_ok=True)

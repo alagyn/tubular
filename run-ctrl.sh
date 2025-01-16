@@ -3,9 +3,7 @@
 SCRIPT_DIR=$(realpath $(dirname $0))
 cd $SCRIPT_DIR
 
-if [[ -z "$VIRTUAL_ENV" ]]
-then
-    source $SCRIPT_DIR/venv/bin/activate
-fi
+export TUBULAR_WORKSPACE=test-workspace
+export TUBULAR_CONFIG_REPO=ssh://git@elara-station:2222/alagyn/tubular-config.git
 
-fastapi dev tubular_controller/controller_router.py
+python -m tubular_controller
