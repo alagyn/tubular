@@ -83,6 +83,9 @@ class ControllerState:
         except KeyError:
             raise RuntimeError("Please set TUBULAR_WORKSPACE env var")
 
+        if not os.path.exists(self.workspace):
+            os.makedirs(self.workspace, exist_ok=True)
+
         dbFile = os.path.join(self.workspace, "tubular.db")
         self._db = PipelineDB(dbFile)
 

@@ -6,6 +6,11 @@ if __name__ == '__main__':
     try:
         port = int(os.environ["TUBULAR_PORT"])
     except KeyError:
-        port = 8080
+        port = 8081
 
-    uvicorn.run("tubular_node.node_router:app", port=port)
+    try:
+        host = os.environ["TUBULAR_HOST"]
+    except KeyError:
+        host = "0.0.0.0"
+
+    uvicorn.run("tubular_node.node_router:app", host=host, port=port)

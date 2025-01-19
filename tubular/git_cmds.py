@@ -20,7 +20,7 @@ def _captureCmd(args, cwd=None) -> str:
     ret = sp.run(args=args, cwd=cwd, stdout=sp.PIPE, stderr=sp.STDOUT)
     if ret.returncode != 0:
         raise RuntimeError(
-            f"Error running git command, {cwd=}: {' '.join(args)}\n{ret.stdout}"
+            f"Error running git command, {cwd=}: {' '.join(args)}\n{ret.stdout.decode()}"
         )
     return ret.stdout.decode()
 
@@ -45,7 +45,7 @@ def pull(repo: Repo, outputFile: TextIO | None):
     _runCmd(["git", "reset", "--hard", f"origin/{repo.branch}"], repo.path,
             outputFile)
 
-    # TODO make this optional?
+    # TODO make this option-al?
     # _runCmd(["git", "clean", "-dfx"], path)
 
 
@@ -64,7 +64,9 @@ def getRepoName(url: str) -> str:
 
 
 def getBranches(url: str) -> list[str]:
-    output = _captureCmd(["git", "ls-remote", "-b", url])
+    # N.B. using --heads here for compatibility with old git versions
+    # means the same thing as --branches
+    output = _captureCmd(["git", "ls-remote", "--heads", url])
     out = []
     for line in output.splitlines():
         branch = line.split("\t")[1]
@@ -80,13 +82,14 @@ def getCurrentLocalCommit(repo: Repo) -> bytearray:
 
 
 def getLatestRemoteCommit(repo: Repo) -> bytearray:
-    output = _captureCmd(["git", "ls-remote", "-b", repo.url, repo.branch])
+    output = _captureCmd(
+        ["git", "ls-remote", "--heads", repo.url, repo.branch])
     commitHashStr = output.split()[0]
     return bytearray.fromhex(commitHashStr)
 
 
 def getLatestRemoteCommits(repo: Repo) -> dict[str, bytearray]:
-    output = _captureCmd(["git", "ls-remote", "-b", repo.url])
+    output = _captureCmd(["git", "ls-remote", "--heads", repo.url])
     out = {}
     for line in output.splitlines():
         commitHashStr, branch = line.split()
